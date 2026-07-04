@@ -3,11 +3,18 @@ import ProductCard from './ProductCard.jsx';
 import EmptyState from '../ui/EmptyState.jsx';
 import { useI18n } from '../../i18n/I18nContext.jsx';
 
-function ProductGrid({ products }) {
+function ProductGrid({ products, emptyTitle, emptyDescription }) {
   const { t } = useI18n();
 
   if (!products.length) {
-    return <EmptyState title={t('noProducts')} description={t('noProductsDesc')} actionTo="/shop" actionLabel={t('backToShop')} />;
+    return (
+      <EmptyState
+        title={emptyTitle || t('noProducts')}
+        description={emptyDescription === undefined ? t('noProductsDesc') : emptyDescription}
+        actionTo="/shop"
+        actionLabel={t('backToShop')}
+      />
+    );
   }
 
   return (

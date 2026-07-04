@@ -2,11 +2,23 @@ import { Search } from 'lucide-react';
 import { Input } from '@heroui/react/input';
 import { useI18n } from '../../i18n/I18nContext.jsx';
 
-export default function SearchBar({ value, onChange, placeholder }) {
+export default function SearchBar({ value, onChange, onSubmit, placeholder }) {
   const { t } = useI18n();
+
+  const handleSubmit = (event) => {
+    event.preventDefault();
+    onSubmit?.();
+  };
+
   return (
-    <label className="relative block w-full">
-      <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400 dark:text-slate-500 rtl:left-auto rtl:right-4" />
+    <form className="relative block w-full" onSubmit={handleSubmit}>
+      <button
+        type="submit"
+        aria-label="Rechercher"
+        className="absolute left-4 top-1/2 z-10 -translate-y-1/2 text-slate-400 transition-colors hover:text-electric focus:outline-none focus-visible:text-electric dark:text-slate-500 rtl:left-auto rtl:right-4"
+      >
+        <Search className="h-5 w-5" />
+      </button>
       <Input
         value={value}
         onChange={(event) => onChange(event.target.value)}
@@ -17,6 +29,6 @@ export default function SearchBar({ value, onChange, placeholder }) {
           input: 'text-slate-900 placeholder:text-slate-400 dark:text-slate-100 dark:placeholder:text-slate-400',
         }}
       />
-    </label>
+    </form>
   );
 }

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Button as HeroButton } from '@heroui/react/button';
 import { Chip } from '@heroui/react/chip';
 import { useSearchParams } from 'react-router-dom';
@@ -24,18 +24,25 @@ export const getCategoryOptions = (t) => [
 ];
 
 export const applyProductFilters = (items, filters) => {
-  const search = filters.search.toLowerCase();
+  const search = String(filters.search || '').trim().toLowerCase();
   return items
     .filter((product) => !filters.category || product.category === filters.category)
     .filter((product) => !filters.brand || product.brand === filters.brand)
     .filter((product) => !filters.stock || product.stock === filters.stock)
     .filter((product) => product.price <= filters.maxPrice)
-    .filter((product) => (
-      product.name.toLowerCase().includes(search)
-      || product.description.toLowerCase().includes(search)
-      || product.brand.toLowerCase().includes(search)
-      || product.subCategory.toLowerCase().includes(search)
-    ))
+    .filter((product) => {
+      if (!search) return true;
+
+      return [
+        product.name,
+        product.brand,
+        product.category,
+        product.subCategory,
+        product.sub_category,
+        product.description,
+        product.model,
+      ].some((value) => String(value || '').toLowerCase().includes(search));
+    })
     .sort((a, b) => {
       if (filters.sort === 'price-asc') return a.price - b.price;
       if (filters.sort === 'price-desc') return b.price - a.price;
@@ -49,6 +56,7 @@ export default function Shop() {
   const { t } = useI18n();
   const { products } = useProductData();
   const [params] = useSearchParams();
+  const paramString = params.toString();
   const [filters, setFilters] = useState({
     search: params.get('search') || '',
     category: params.get('category') || '',
@@ -58,8 +66,18 @@ export default function Shop() {
     stock: '',
   });
 
+  useEffect(() => {
+    setFilters((current) => ({
+      ...current,
+      search: params.get('search') || '',
+      category: params.get('category') || '',
+      brand: params.get('brand') || '',
+    }));
+  }, [paramString]);
+
   const filteredProducts = useMemo(() => applyProductFilters(products, filters), [products, filters]);
   const translatedCategoryOptions = useMemo(() => getCategoryOptions(t), [t]);
+  const activeSearch = filters.search.trim();
 
   return (
     <section className="container-shell py-10 md:py-12">
@@ -81,10 +99,19 @@ export default function Shop() {
         <ProductFilters filters={filters} onChange={setFilters} categories={translatedCategoryOptions} />
         <div>
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-            <p className="text-sm font-bold text-slate-500 dark:text-slate-400">{filteredProducts.length} {t('productsFound')}</p>
+            <div>
+              {activeSearch && (
+                <h2 className="text-xl font-black text-slate-900 dark:text-white">Résultats pour "{activeSearch}"</h2>
+              )}
+              <p className="text-sm font-bold text-slate-500 dark:text-slate-400">{filteredProducts.length} {t('productsFound')}</p>
+            </div>
             <Chip color="warning" variant="flat" radius="full" className="font-black">{t('freeDelivery')} · {t('warranty6')}</Chip>
           </div>
-          <ProductGrid products={filteredProducts} />
+          <ProductGrid
+            products={filteredProducts}
+            emptyTitle={activeSearch ? `Aucun produit trouvé pour "${activeSearch}"` : undefined}
+            emptyDescription={activeSearch ? null : undefined}
+          />
         </div>
       </div>
     </section>
