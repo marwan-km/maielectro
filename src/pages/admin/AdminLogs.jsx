@@ -3,6 +3,8 @@ import { useEffect, useMemo, useState } from 'react';
 import AdminLayout from './AdminLayout.jsx';
 import { listAdminLogs } from '../../services/logService.js';
 import useAdminAuth from '../../hooks/useAdminAuth.js';
+import usePermissions from '../../hooks/usePermissions.js';
+import { PERMISSIONS } from '../../config/permissions.js';
 import EmptyState from '../../components/ui/EmptyState.jsx';
 import Button from '../../components/ui/Button.jsx';
 import AdminSkeleton from '../../components/admin/AdminSkeleton.jsx';
@@ -10,6 +12,8 @@ import { formatAdminDate } from '../../utils/date.js';
 
 export default function AdminLogs() {
   const auth = useAdminAuth();
+  const { can } = usePermissions();
+  const canViewAllLogs = can(PERMISSIONS.LOGS_VIEW_ALL);
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -19,7 +23,7 @@ export default function AdminLogs() {
     setLoading(true);
     setError('');
     try {
-      const data = await listAdminLogs({ ownOnly: false, email: auth.email });
+      const data = await listAdminLogs({ ownOnly: !canViewAllLogs, email: auth.email });
       setLogs(data);
     } catch (err) {
       setError(err.message || 'Chargement des logs impossible.');
@@ -35,7 +39,7 @@ export default function AdminLogs() {
       setLoading(true);
       setError('');
       try {
-        const data = await listAdminLogs({ ownOnly: false, email: auth.email });
+        const data = await listAdminLogs({ ownOnly: !canViewAllLogs, email: auth.email });
         if (mounted) setLogs(data);
       } catch (err) {
         if (mounted) {
@@ -48,7 +52,7 @@ export default function AdminLogs() {
     };
     load();
     return () => { mounted = false; };
-  }, [auth.email]);
+  }, [auth.email, canViewAllLogs]);
 
   const filteredLogs = useMemo(() => logs.filter((log) => {
     const date = log.created_at ? new Date(log.created_at) : null;

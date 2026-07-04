@@ -3,9 +3,8 @@ import { Navigate } from 'react-router-dom';
 import { Lock, Mail, ShieldCheck } from 'lucide-react';
 import Button from '../../components/ui/Button.jsx';
 import BrandLogo from '../../components/ui/BrandLogo.jsx';
-import { isAllowedSuperAdminEmail, SUPER_ADMIN_EMAIL } from '../../config/admin.js';
 import { isSupabaseConfigured, supabase } from '../../lib/supabaseClient.js';
-import { getAdminProfileByEmail } from '../../services/adminService.js';
+import { getAdminProfileBySession } from '../../services/adminService.js';
 
 export default function AdminLogin({ initialError = '' }) {
   const [email, setEmail] = useState('');
@@ -33,9 +32,6 @@ export default function AdminLogin({ initialError = '' }) {
     setMessage('');
     try {
       const normalizedEmail = email.trim().toLowerCase();
-      if (!isAllowedSuperAdminEmail(normalizedEmail)) {
-        throw new Error(`Accès refusé pour: ${normalizedEmail}. Seul le super admin est autorisé.`);
-      }
 
       const { data, error: authError } = await supabase.auth.signInWithPassword({
         email: normalizedEmail,
@@ -43,11 +39,11 @@ export default function AdminLogin({ initialError = '' }) {
       });
       if (authError) throw authError;
       const loggedInEmail = data.user?.email || normalizedEmail;
-      const profile = await getAdminProfileByEmail(loggedInEmail);
+      const profile = await getAdminProfileBySession(data.session);
       if (!profile) {
         await supabase.auth.signOut();
         setSession(null);
-        setError(`Accès refusé pour: ${loggedInEmail}. Seul le super admin est autorisé.`);
+        setError(`Accès refusé pour: ${loggedInEmail}. Ce compte n'est pas un administrateur actif autorisé.`);
       } else if (data.session) {
         setSession(data.session);
       }
@@ -64,9 +60,7 @@ export default function AdminLogin({ initialError = '' }) {
     setMessage('');
     try {
       const normalizedEmail = email.trim().toLowerCase();
-      if (!isAllowedSuperAdminEmail(normalizedEmail)) {
-        throw new Error(`Saisissez ${SUPER_ADMIN_EMAIL} pour recevoir un lien de réinitialisation.`);
-      }
+      if (!normalizedEmail) throw new Error('Saisissez votre email administrateur.');
 
       const redirectTo = `${window.location.origin}/admin/reset-password`;
       const { error: authError } = await supabase.auth.resetPasswordForEmail(normalizedEmail, {

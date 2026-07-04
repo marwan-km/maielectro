@@ -22,27 +22,41 @@ if (listError) throw listError;
 
 const existingUser = usersData.users.find((user) => user.email?.toLowerCase() === normalizedEmail);
 
+let authUser = existingUser;
+
 if (existingUser) {
-  const { error } = await supabase.auth.admin.updateUserById(existingUser.id, {
+  const { data, error } = await supabase.auth.admin.updateUserById(existingUser.id, {
     password,
     email_confirm: true,
   });
   if (error) throw error;
+  authUser = data.user || existingUser;
   console.log(`Updated Auth password for ${normalizedEmail}.`);
 } else {
-  const { error } = await supabase.auth.admin.createUser({
+  const { data, error } = await supabase.auth.admin.createUser({
     email: normalizedEmail,
     password,
     email_confirm: true,
   });
   if (error) throw error;
+  authUser = data.user;
   console.log(`Created Auth user ${normalizedEmail}.`);
 }
 
-const { error: upsertError } = await supabase
+if (!authUser?.id) throw new Error('Supabase Auth user id was not returned.');
+
+let row = { id: authUser.id, email: normalizedEmail, role, is_active: true };
+let { error: upsertError } = await supabase
   .from('admin_users')
-  .upsert({ email: normalizedEmail, role, active: true }, { onConflict: 'email' });
+  .upsert(row, { onConflict: 'id' });
+
+if (upsertError && /is_active|schema cache|column/i.test(upsertError.message || '')) {
+  row = { id: authUser.id, email: normalizedEmail, role };
+  ({ error: upsertError } = await supabase
+    .from('admin_users')
+    .upsert(row, { onConflict: 'id' }));
+}
 
 if (upsertError) throw upsertError;
 
-console.log(`Upserted admin_users row for ${normalizedEmail} as ${role}.`);
+console.log(`Upserted admin_users row id=${authUser.id} for ${normalizedEmail} as ${role}.`);

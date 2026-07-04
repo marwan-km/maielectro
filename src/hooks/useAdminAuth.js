@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { isSupabaseConfigured, supabase } from '../lib/supabaseClient.js';
-import { isAllowedSuperAdminEmail, SUPER_ADMIN_EMAIL } from '../config/admin.js';
-import { getAdminProfileByEmail } from '../services/adminService.js';
+import { getAdminProfileBySession } from '../services/adminService.js';
 import { addAdminLog } from '../services/logService.js';
 
 export default function useAdminAuth() {
@@ -18,16 +17,9 @@ export default function useAdminAuth() {
     }
     try {
       const loggedInEmail = nextSession.user?.email || '';
-      if (!isAllowedSuperAdminEmail(loggedInEmail)) {
-        setError(`Accès refusé pour: ${loggedInEmail || 'email inconnu'}. Seul le super admin est autorisé.`);
-        setAdmin(null);
-        setLoading(false);
-        return;
-      }
-
-      const profile = await getAdminProfileByEmail(loggedInEmail);
+      const profile = await getAdminProfileBySession(nextSession);
       if (!profile) {
-        setError(`Accès refusé pour: ${loggedInEmail || 'email inconnu'}. Seul le super admin est autorisé. Vérifiez public.admin_users: ${SUPER_ADMIN_EMAIL}, role super_admin, active true.`);
+        setError(`Accès refusé pour: ${loggedInEmail || 'email inconnu'}. Ce compte n'est pas un administrateur actif autorisé.`);
         setAdmin(null);
       } else {
         setAdmin(profile);
@@ -72,8 +64,8 @@ export default function useAdminAuth() {
     loading,
     error,
     isConfigured: isSupabaseConfigured,
-    isAdmin: Boolean(admin?.active),
-    isSuperAdmin: admin?.role === 'super_admin' && isAllowedSuperAdminEmail(admin?.email),
+    isAdmin: Boolean(admin) && (admin.is_active ?? admin.active ?? true),
+    isSuperAdmin: admin?.role === 'super_admin' && (admin.is_active ?? admin.active ?? true),
     email: session?.user?.email || '',
     logout: async () => {
       if (supabase) await supabase.auth.signOut();

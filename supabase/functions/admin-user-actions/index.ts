@@ -6,7 +6,40 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-const SUPER_ADMIN_EMAIL = 'kirammarwan@gmail.com'
+function json(body: Record<string, unknown>, status = 200) {
+  return new Response(JSON.stringify(body), {
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    status,
+  })
+}
+
+function isMissingColumnError(error: { message?: string; details?: string } | null) {
+  return /column|schema cache|PGRST204/i.test(String(error?.message || '') + ' ' + String(error?.details || ''))
+}
+
+function isActiveAdmin(admin: Record<string, unknown> | null) {
+  if (!admin || !Object.prototype.hasOwnProperty.call(admin, 'is_active')) return true
+  return admin.is_active === true
+}
+
+async function getAdminBy(supabaseAdmin: any, column: string, value: string) {
+  let { data, error } = await supabaseAdmin
+    .from('admin_users')
+    .select('id,email,role,is_active')
+    .eq(column, value)
+    .limit(1)
+
+  if (error && isMissingColumnError(error) && /is_active/i.test(String(error.message || '') + ' ' + String(error.details || ''))) {
+    ;({ data, error } = await supabaseAdmin
+      .from('admin_users')
+      .select('id,email,role')
+      .eq(column, value)
+      .limit(1))
+  }
+
+  if (error) throw new Error('Table column mismatch: ' + error.message)
+  return data?.[0] || null
+}
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -14,78 +47,51 @@ serve(async (req) => {
   }
 
   try {
-    const supabaseClient = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
-      { global: { headers: { Authorization: req.headers.get('Authorization')! } } }
-    )
+    const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? ''
+    const anonKey = Deno.env.get('SUPABASE_ANON_KEY') ?? ''
+    const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    if (!supabaseUrl) return json({ error: 'Missing env variable: SUPABASE_URL.' }, 500)
+    if (!serviceRoleKey) return json({ error: 'Service role missing: SUPABASE_SERVICE_ROLE_KEY.' }, 500)
 
-    const supabaseAdmin = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    )
+    const supabaseClient = createClient(supabaseUrl, anonKey, {
+      global: { headers: { Authorization: req.headers.get('Authorization')! } },
+    })
+    const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey)
 
-    // 1. Authenticate the user making the request
     const { data: { user }, error: userError } = await supabaseClient.auth.getUser()
-    if (userError || !user) {
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 401 })
-    }
+    if (userError || !user) return json({ error: 'Unauthorized' }, 401)
 
     const requesterEmail = user.email?.toLowerCase() ?? ''
+    const requesterAdmin = await getAdminBy(supabaseAdmin, 'id', user.id) || await getAdminBy(supabaseAdmin, 'email', requesterEmail)
 
-    // 2. Check if the requester is the active super_admin in public.admin_users.
-    const { data: adminProfile, error: adminError } = await supabaseAdmin
-      .from('admin_users')
-      .select('email, role, active')
-      .eq('email', requesterEmail)
-      .eq('role', 'super_admin')
-      .eq('active', true)
-      .maybeSingle()
+    if (!requesterAdmin) return json({ error: 'Current user not found in admin_users by id or email.' }, 403)
+    if (requesterAdmin.role !== 'super_admin') return json({ error: 'Current user role is not super_admin.' }, 403)
+    if (!isActiveAdmin(requesterAdmin)) return json({ error: 'Current admin user is not active: is_active is false.' }, 403)
 
-    if (
-      adminError ||
-      !adminProfile ||
-      requesterEmail !== SUPER_ADMIN_EMAIL
-    ) {
-      return new Response(JSON.stringify({ error: 'Forbidden: only super_admin can do this' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 403 })
-    }
-
-    const { action, email, password } = await req.json()
+    const { action, email, id, password } = await req.json()
 
     if (action === 'update_password') {
-      if (!email || !password) throw new Error('Email and password are required')
+      if ((!email && !id) || !password) throw new Error('Admin id/email and password are required')
       if (typeof password !== 'string' || password.length < 8) throw new Error('Password must contain at least 8 characters')
-      const targetEmail = String(email).toLowerCase()
-      
-      // Get the target user ID using admin API
-      const { data: { users }, error: listError } = await supabaseAdmin.auth.admin.listUsers()
-      if (listError) throw listError
-      
-      const targetUser = users.find(u => u.email?.toLowerCase() === targetEmail)
-      if (!targetUser) throw new Error('User not found in Auth system')
 
-      const { data: updateData, error: updateError } = await supabaseAdmin.auth.admin.updateUserById(
-        targetUser.id,
-        { password: password }
+      const targetAdmin = id
+        ? await getAdminBy(supabaseAdmin, 'id', String(id))
+        : await getAdminBy(supabaseAdmin, 'email', String(email).toLowerCase())
+
+      if (!targetAdmin?.id) throw new Error('Target admin_users row was not found by id/email')
+
+      const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(
+        targetAdmin.id,
+        { password },
       )
-      
-      if (updateError) throw updateError
 
-      return new Response(JSON.stringify({ message: 'Password updated successfully' }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 200,
-      })
+      if (updateError) throw updateError
+      return json({ message: 'Password updated successfully' })
     }
 
-    return new Response(JSON.stringify({ error: 'Invalid action' }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      status: 400,
-    })
-
+    return json({ error: 'Invalid action' }, 400)
   } catch (error) {
-    return new Response(JSON.stringify({ error: error.message || 'Action failed' }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      status: 500,
-    })
+    const message = error instanceof Error ? error.message : 'Action failed'
+    return json({ error: message }, 500)
   }
 })

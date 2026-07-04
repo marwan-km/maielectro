@@ -64,6 +64,7 @@ try {
   console.log(`Setting up single super admin: ${normalizedEmail}`);
 
   const existingUser = await findAuthUserByEmail(normalizedEmail);
+  let authUser = existingUser;
 
   if (existingUser) {
     await request(`/auth/v1/admin/users/${existingUser.id}`, {
@@ -73,9 +74,10 @@ try {
         email_confirm: true,
       }),
     });
+    authUser = { ...existingUser };
     console.log(`Updated Supabase Auth user: ${normalizedEmail}`);
   } else {
-    await request('/auth/v1/admin/users', {
+    authUser = await request('/auth/v1/admin/users', {
       method: 'POST',
       body: JSON.stringify({
         email: normalizedEmail,
@@ -86,28 +88,50 @@ try {
     console.log(`Created Supabase Auth user: ${normalizedEmail}`);
   }
 
-  await request('/rest/v1/admin_users?on_conflict=email', {
-    method: 'POST',
-    headers: { Prefer: 'resolution=merge-duplicates' },
-    body: JSON.stringify({
-      email: normalizedEmail,
-      role: 'super_admin',
-      active: true,
-    }),
-  });
+  const authUserId = authUser?.id || authUser?.user?.id;
+  if (!authUserId) throw new Error('Supabase Auth user id was not returned.');
+
+  try {
+    await request('/rest/v1/admin_users?on_conflict=id', {
+      method: 'POST',
+      headers: { Prefer: 'resolution=merge-duplicates' },
+      body: JSON.stringify({
+        id: authUserId,
+        email: normalizedEmail,
+        role: 'super_admin',
+        is_active: true,
+      }),
+    });
+  } catch (error) {
+    if (!/is_active|schema cache|column/i.test(error.message || '')) throw error;
+    await request('/rest/v1/admin_users?on_conflict=id', {
+      method: 'POST',
+      headers: { Prefer: 'resolution=merge-duplicates' },
+      body: JSON.stringify({
+        id: authUserId,
+        email: normalizedEmail,
+        role: 'super_admin',
+      }),
+    });
+  }
   console.log('Upserted public.admin_users super_admin row.');
 
-  await request(`/rest/v1/admin_users?email=neq.${encodeURIComponent(normalizedEmail)}`, {
-    method: 'PATCH',
-    body: JSON.stringify({
-      role: 'super_admin',
-      active: false,
-      updated_at: new Date().toISOString(),
-    }),
-  });
-  console.log('Deactivated all other public.admin_users rows.');
+  try {
+    await request(`/rest/v1/admin_users?email=neq.${encodeURIComponent(normalizedEmail)}`, {
+      method: 'PATCH',
+      body: JSON.stringify({
+        role: 'super_admin',
+        is_active: false,
+        updated_at: new Date().toISOString(),
+      }),
+    });
+    console.log('Deactivated all other public.admin_users rows.');
+  } catch (error) {
+    if (!/is_active|updated_at|schema cache|column/i.test(error.message || '')) throw error;
+    console.log('Skipped deactivating other admin rows because optional status columns are missing.');
+  }
 
-  console.log('Success: only kirammarwan@gmail.com is active as super_admin.');
+  console.log('Success: kirammarwan@gmail.com is configured as super_admin using admin_users.id = Auth user id.');
 } catch (error) {
   console.error(`Error: ${error.message || 'Super admin setup failed.'}`);
   process.exit(1);

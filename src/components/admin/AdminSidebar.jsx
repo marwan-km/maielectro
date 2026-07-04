@@ -1,22 +1,26 @@
-import { BarChart3, FolderTree, LogOut, Package, PlusCircle, RotateCcw, Settings, Shield, ShieldCheck, Store, Warehouse, X } from 'lucide-react';
+import { BarChart3, FolderTree, LogOut, Package, PlusCircle, RotateCcw, Settings, Shield, ShieldCheck, Store, Warehouse, Wrench, X } from 'lucide-react';
 import { Button as HeroButton } from '@heroui/react/button';
 import { Link, useLocation } from 'react-router-dom';
 import BrandLogo from '../ui/BrandLogo.jsx';
+import usePermissions from '../../hooks/usePermissions.js';
+import { PERMISSIONS } from '../../config/permissions.js';
 
 const ADMIN_NAV_ITEMS = [
-  { to: '/admin', label: 'Tableau de bord', icon: BarChart3, match: (path) => path === '/admin' },
-  { to: '/admin/products', label: 'Produits', icon: Package, match: (path) => path === '/admin/products' || path.startsWith('/admin/products/edit') },
-  { to: '/admin/products/new', label: 'Ajouter produit', icon: PlusCircle, match: (path) => path === '/admin/products/new' },
-  { to: '/admin/categories', label: 'Catégories', icon: FolderTree, match: (path) => path === '/admin/categories' },
-  { to: '/admin/stock', label: 'Stock', icon: Warehouse, match: (path) => path === '/admin/stock' },
-  { to: '/admin/admins', label: 'Administrateurs', icon: Shield, match: (path) => path === '/admin/admins' },
-  { to: '/admin/logs', label: 'Logs', icon: RotateCcw, match: (path) => path === '/admin/logs' },
-  { to: '/admin/settings', label: 'Paramètres', icon: Settings, match: (path) => path === '/admin/settings' },
+  { to: '/admin', label: 'Tableau de bord', icon: BarChart3, permission: PERMISSIONS.DASHBOARD_VIEW, match: (path) => path === '/admin' },
+  { to: '/admin/products', label: 'Produits', icon: Package, permission: PERMISSIONS.PRODUCTS_VIEW, match: (path) => path === '/admin/products' || path.startsWith('/admin/products/edit') },
+  { to: '/admin/products/new', label: 'Ajouter produit', icon: PlusCircle, permission: PERMISSIONS.PRODUCTS_CREATE, match: (path) => path === '/admin/products/new' },
+  { to: '/admin/categories', label: 'Catégories', icon: FolderTree, permission: PERMISSIONS.CATEGORIES_VIEW, match: (path) => path === '/admin/categories' },
+  { to: '/admin/stock', label: 'Stock', icon: Warehouse, permission: PERMISSIONS.STOCK_VIEW, match: (path) => path === '/admin/stock' },
+  { to: '/admin/repair-services', label: 'Réparations', icon: Wrench, match: (path) => path === '/admin/repair-services' },
+  { to: '/admin/admins', label: 'Administrateurs', icon: Shield, superAdminOnly: true, match: (path) => path === '/admin/admins' },
+  { to: '/admin/logs', label: 'Logs', icon: RotateCcw, permission: PERMISSIONS.LOGS_VIEW_OWN, match: (path) => path === '/admin/logs' },
+  { to: '/admin/settings', label: 'Paramètres', icon: Settings, permission: PERMISSIONS.SETTINGS_VIEW, match: (path) => path === '/admin/settings' },
   { to: '/admin/help', label: 'Aide', icon: ShieldCheck, match: (path) => path === '/admin/help' },
 ];
 
 export default function AdminSidebar({ onLogout, isOpen = false, onClose }) {
   const location = useLocation();
+  const { can, isSuperAdmin } = usePermissions();
 
   const content = (
     <div className="flex h-full min-h-0 flex-col">
@@ -40,6 +44,9 @@ export default function AdminSidebar({ onLogout, isOpen = false, onClose }) {
 
       <nav className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto pr-1">
         {ADMIN_NAV_ITEMS.map((item) => {
+          if (item.superAdminOnly && !isSuperAdmin) return null;
+          if (item.permission && !can(item.permission)) return null;
+
           const Icon = item.icon;
           const isActive = item.match(location.pathname);
           return (

@@ -11,58 +11,81 @@ const normalizeAdminError = (error) => {
   return error;
 };
 
-export async function getAdmins({ includeInactive = false } = {}) {
-  if (!isSupabaseConfigured) return [];
-  let query = supabase.from('admin_users').select('*').order('created_at', { ascending: false });
-  if (!includeInactive) query = query.eq('active', true);
-  const { data, error } = await query;
-  if (error) throw new Error(`${error.message}. Appliquez la migration 007_final_admin_repair_blog_fix.sql si admin_users est incomplet.`);
-  return data || [];
+async function getAccessToken() {
+  if (!isSupabaseConfigured) throw new Error('Supabase is not configured.');
+  const { data, error } = await supabase.auth.getSession();
+  if (error) throw error;
+  const token = data.session?.access_token;
+  if (!token) throw new Error('Session admin expirée. Reconnectez-vous.');
+  return token;
 }
 
-export async function createAdmin({ email, fullName, role, active, permissions }, adminEmail) {
-  if (!isSupabaseConfigured) throw new Error('Supabase is not configured.');
-  const row = {
+async function postAdminApi(path, body) {
+  const token = await getAccessToken();
+  const response = await fetch(path, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  });
+
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(payload.error || 'Action admin impossible.');
+  }
+  return payload;
+}
+
+const adminIsActive = (admin) => admin?.is_active ?? admin?.active ?? true;
+
+export async function getAdmins({ includeInactive = false } = {}) {
+  if (!isSupabaseConfigured) return [];
+  const { data, error } = await supabase.from('admin_users').select('*').order('created_at', { ascending: false });
+  if (error) throw new Error(error.message + '. Vérifiez public.admin_users et les politiques RLS.');
+  const rows = data || [];
+  return includeInactive ? rows : rows.filter(adminIsActive);
+}
+
+export async function createAdminWithPassword({ email, fullName, role, password }, adminEmail) {
+  const data = await postAdminApi('/api/admin/create-user', {
     email,
+    password,
     full_name: fullName,
     role,
-    active: active ?? true,
-    permissions: permissions || {},
-    updated_at: new Date().toISOString(),
-  };
-  const rowWithCreator = {
-    ...row,
-    created_by: adminEmail,
-  };
-  let { data, error } = await supabase.from('admin_users').insert(rowWithCreator).select().single();
-  if (error && /created_by|schema cache/i.test(error.message || '')) {
-    ({ data, error } = await supabase.from('admin_users').insert(row).select().single());
-  }
-  if (error) throw normalizeAdminError(error);
-  
+  });
+
   await addAdminLog({
     adminEmail,
-    action: 'admin created',
+    action: 'admin auth user created',
     entityType: 'admin_user',
-    entityId: data.id,
-    details: { email, role }
+    entityId: data.admin_user?.id || data.auth_user_id,
+    details: { email, role },
   }).catch(() => null);
-  
+
   return data;
 }
 
 export async function updateAdmin(id, { fullName, role, active, permissions }, adminEmail) {
   if (!isSupabaseConfigured) throw new Error('Supabase is not configured.');
-  const { data, error } = await supabase.from('admin_users').update({
+  const row = {
     full_name: fullName,
     role,
-    active,
+    is_active: active,
     permissions: permissions || {},
     updated_at: new Date().toISOString(),
-  }).eq('id', id).select().single();
-  
+  };
+  let { data, error } = await supabase.from('admin_users').update(row).eq('id', id).select().single();
+
+  if (error && /is_active|full_name|permissions|updated_at|schema cache|column/i.test(error.message || '')) {
+    const fallbackRow = { role };
+    if (!/is_active/i.test(error.message || '')) fallbackRow.is_active = active;
+    ({ data, error } = await supabase.from('admin_users').update(fallbackRow).eq('id', id).select().single());
+  }
+
   if (error) throw normalizeAdminError(error);
-  
+
   await addAdminLog({
     adminEmail,
     action: 'admin updated',
@@ -70,16 +93,19 @@ export async function updateAdmin(id, { fullName, role, active, permissions }, a
     entityId: id,
     details: { role, active }
   }).catch(() => null);
-  
+
   return data;
 }
 
 export async function deactivateAdmin(id, adminEmail) {
   if (!isSupabaseConfigured) throw new Error('Supabase is not configured.');
-  const { data, error } = await supabase.from('admin_users').update({
-    active: false,
+  let { data, error } = await supabase.from('admin_users').update({
+    is_active: false,
     updated_at: new Date().toISOString(),
   }).eq('id', id).select().single();
+  if (error && /is_active|updated_at|schema cache|column/i.test(error.message || '')) {
+    ({ data, error } = await supabase.from('admin_users').update({ active: false }).eq('id', id).select().single());
+  }
   if (error) throw error;
   await addAdminLog({ adminEmail, action: 'admin deactivated', entityType: 'admin_user', entityId: id }).catch(() => null);
   return data;
@@ -98,42 +124,20 @@ export async function deleteAdmin(id, adminEmail) {
   }).catch(() => null);
 }
 
-export async function sendPasswordReset(email, adminEmail) {
-  if (!isSupabaseConfigured) throw new Error('Supabase is not configured.');
-  
-  const { error } = await supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: `${window.location.origin}/admin/reset-password`
-  }).catch(() => null);
-  
-  if (error) throw error;
-  
-  await addAdminLog({
-    adminEmail,
-    action: 'password reset sent',
-    entityType: 'admin_user',
-    details: { targetEmail: email }
-  }).catch(() => null);
-}
+export async function updateAdminPassword(targetAdmin, newPassword, adminEmail) {
+  const data = await postAdminApi('/api/admin/update-password', {
+    id: targetAdmin.id,
+    email: targetAdmin.email,
+    password: newPassword,
+  });
 
-export async function updateAdminPasswordViaEdgeFunction(targetEmail, newPassword, adminEmail) {
-  if (!isSupabaseConfigured) throw new Error('Supabase is not configured.');
-  
-  const { data, error } = await supabase.functions.invoke('admin-user-actions', {
-    body: {
-      action: 'update_password',
-      email: targetEmail,
-      password: newPassword
-    }
-  });
-  
-  if (error) throw error;
-  
   await addAdminLog({
     adminEmail,
-    action: 'password changed securely',
+    action: 'admin password updated',
     entityType: 'admin_user',
-    details: { targetEmail }
-  });
-  
+    entityId: targetAdmin.id,
+    details: { targetEmail: targetAdmin.email },
+  }).catch(() => null);
+
   return data;
 }

@@ -77,8 +77,9 @@ export default function App() {
             <Route path="/admin/products/edit/:id" element={<AdminRoute><AdminProductForm /></AdminRoute>} />
             <Route path="/admin/categories" element={<AdminRoute><AdminCategories /></AdminRoute>} />
             <Route path="/admin/stock" element={<AdminRoute><AdminStock /></AdminRoute>} />
-            <Route path="/admin/repair-services" element={<AdminRoute superAdminOnly><AdminRepairServices /></AdminRoute>} />
+            <Route path="/admin/repair-services" element={<AdminRoute><AdminRepairServices /></AdminRoute>} />
             <Route path="/admin/admins" element={<AdminRoute superAdminOnly><AdminUsers /></AdminRoute>} />
+            <Route path="/admin/users" element={<AdminRoute superAdminOnly><AdminUsers /></AdminRoute>} />
             <Route path="/admin/logs" element={<AdminRoute><AdminLogs /></AdminRoute>} />
             <Route path="/admin/settings" element={<AdminRoute><AdminSettings /></AdminRoute>} />
             <Route path="/admin/help" element={<AdminRoute><AdminHelp /></AdminRoute>} />

@@ -4,10 +4,14 @@ import AdminLayout from './AdminLayout.jsx';
 import Button from '../../components/ui/Button.jsx';
 import AdminSkeleton from '../../components/admin/AdminSkeleton.jsx';
 import useAdminAuth from '../../hooks/useAdminAuth.js';
+import usePermissions from '../../hooks/usePermissions.js';
+import { PERMISSIONS } from '../../config/permissions.js';
 import { defaultSettings, getSettings, updateSettings } from '../../services/settingsService.js';
 
 export default function AdminSettings() {
   const auth = useAdminAuth();
+  const { can } = usePermissions();
+  const canUpdateSettings = can(PERMISSIONS.SETTINGS_UPDATE);
   const [settings, setSettings] = useState({});
   const [settingRows, setSettingRows] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -51,6 +55,11 @@ export default function AdminSettings() {
     setError('');
     setMessage('');
     try {
+      if (!canUpdateSettings) {
+        setError("Vous n\'avez pas la permission de modifier les paramètres.");
+        return;
+      }
+
       await updateSettings(settings, auth.email);
       const data = await getSettings();
       const { rows = [], ...values } = data;
@@ -113,11 +122,13 @@ export default function AdminSettings() {
           ))}
         </div>
 
-        <div className="pt-4">
-          <Button type="submit" disabled={saving}>
-            <Save className="mr-2 h-5 w-5" /> {saving ? 'Enregistrement...' : 'Enregistrer'}
-          </Button>
-        </div>
+        {canUpdateSettings && (
+          <div className="pt-4">
+            <Button type="submit" disabled={saving}>
+              <Save className="mr-2 h-5 w-5" /> {saving ? 'Enregistrement...' : 'Enregistrer'}
+            </Button>
+          </div>
+        )}
       </form>
 
       <section className="mt-6 max-w-5xl rounded-2xl border border-slate-200 bg-white p-6 shadow-soft dark:border-slate-800 dark:bg-card-dark">

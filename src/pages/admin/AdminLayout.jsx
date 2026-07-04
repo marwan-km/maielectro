@@ -12,6 +12,7 @@ const pageTitles = {
   '/admin/stock': 'Stock',
   '/admin/repair-services': 'Services réparation',
   '/admin/admins': 'Administrateurs',
+  '/admin/users': 'Administrateurs',
   '/admin/logs': 'Logs',
   '/admin/settings': 'Paramètres',
   '/admin/help': 'Aide',
