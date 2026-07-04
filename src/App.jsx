@@ -6,6 +6,7 @@ import Navbar from './components/layout/Navbar.jsx';
 import MobileMenu from './components/layout/MobileMenu.jsx';
 import Footer from './components/layout/Footer.jsx';
 import WhatsAppButton from './components/ui/WhatsAppButton.jsx';
+import CartFloatingButton from './components/cart/CartFloatingButton.jsx';
 
 const AdminRoute = lazy(() => import('./components/admin/AdminRoute.jsx'));
 const Home = lazy(() => import('./pages/Home.jsx'));
@@ -47,7 +48,7 @@ export default function App() {
   }, [location.hash, location.pathname, navigate]);
 
   return (
-    <div className="min-h-screen w-full overflow-x-hidden bg-gray-50 text-gray-900 transition-colors duration-300 dark:bg-gray-950 dark:text-gray-100">
+    <div className="flex min-h-screen w-full flex-col overflow-x-hidden bg-gray-50 text-gray-900 transition-colors duration-300 dark:bg-gray-950 dark:text-gray-100">
       {!isAdminRoute && (
         <>
           <TopBar />
@@ -56,7 +57,7 @@ export default function App() {
           <MobileMenu isOpen={isMenuOpen} onClose={() => setIsMenuOpen(false)} />
         </>
       )}
-      <main>
+      <main className="flex-1">
         <Suspense fallback={<RouteFallback isAdmin={isAdminRoute} />}>
           <Routes>
             <Route path="/" element={<Home />} />
@@ -90,6 +91,7 @@ export default function App() {
         <>
           <Footer />
           <WhatsAppButton />
+          <CartFloatingButton />
         </>
       )}
     </div>

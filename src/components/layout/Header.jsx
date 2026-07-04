@@ -1,15 +1,17 @@
-import { Menu, MessageCircle, Phone } from 'lucide-react';
+import { Menu, MessageCircle, Phone, ShoppingCart } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useState } from 'react';
 import SearchBar from '../ui/SearchBar.jsx';
 import LanguageSwitcher from '../ui/LanguageSwitcher.jsx';
 import { phoneLink, storeInfo, whatsappLink } from '../../data/storeInfo.js';
+import { useCart } from '../../context/CartContext.jsx';
 import { useI18n } from '../../i18n/I18nContext.jsx';
 import BrandLogo from '../ui/BrandLogo.jsx';
 
 export default function Header({ onMenuOpen }) {
   const { t } = useI18n();
   const navigate = useNavigate();
+  const { cartCount, openCart } = useCart();
   const [searchQuery, setSearchQuery] = useState('');
 
   const submitSearch = () => {
@@ -49,6 +51,18 @@ export default function Header({ onMenuOpen }) {
             <MessageCircle className="h-4 w-4" /> WhatsApp
           </a>
 
+          <button
+            type="button"
+            onClick={openCart}
+            className="relative inline-flex h-10 w-10 items-center justify-center rounded-xl border border-gray-200 bg-white text-gray-700 transition-colors hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+            aria-label="Ouvrir le panier"
+            title="Panier"
+          >
+            <ShoppingCart className="h-4 w-4" />
+            {cartCount > 0 && (
+              <span className="absolute -right-1 -top-1 grid h-4 min-w-4 place-items-center rounded-full bg-red-600 px-1 text-[10px] font-black leading-none text-white">{cartCount}</span>
+            )}
+          </button>
           <LanguageSwitcher />
         </div>
       </div>

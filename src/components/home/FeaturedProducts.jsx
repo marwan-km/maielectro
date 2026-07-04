@@ -18,7 +18,7 @@ export default function FeaturedProducts({ title, subtitle, category, limit = 4 
         description={subtitle}
         action={<Button to={`/category/${category}`} variant="secondary">{t('viewAll')}</Button>}
       />
-      <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4">
         {items.map((product) => <ProductCard key={product.id} product={product} />)}
       </div>
       {category === 'pieces-detachees' && (

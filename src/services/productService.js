@@ -1,5 +1,6 @@
 import { isSupabaseConfigured, supabase } from '../lib/supabaseClient.js';
 import { uploadProductImage as uploadProductImageToStorage } from './storageService.js';
+import { getStableProductRating } from '../utils/productRating.js';
 import { addAdminLog, addStockLog } from './logService.js';
 import { matchesProductQuery, resolveProductCategory, resolveProductSubCategory } from '../utils/productClassification.js';
 
@@ -48,7 +49,7 @@ export const mapDbProductToUiProduct = (row) => {
     oldPrice: row.old_price ?? row.oldPrice ?? null,
     image: firstImage(row),
     gallery: toArray(row.gallery).filter(isUsableProductImage),
-    rating: Number(row.rating || 4.7),
+    rating: getStableProductRating(row),
     warranty: row.warranty || '',
     stock: row.stock || 'in_stock',
     stockQuantity: Number(row.stock_quantity ?? row.stockQuantity ?? 1),

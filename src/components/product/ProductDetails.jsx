@@ -1,15 +1,16 @@
-import { ChevronLeft, ChevronRight, MessageCircle, ShieldCheck, Star, Truck, X, ZoomIn } from 'lucide-react';
+import { ChevronLeft, ChevronRight, MessageCircle, ShoppingCart, ShieldCheck, Star, Truck, X, ZoomIn } from 'lucide-react';
 import { Card } from '@heroui/react/card';
 import { useMemo, useState } from 'react';
 import Badge from '../ui/Badge.jsx';
-import Button from '../ui/Button.jsx';
 import Breadcrumb from '../ui/Breadcrumb.jsx';
 import ProductImage from '../ui/ProductImage.jsx';
 import { whatsappLink } from '../../data/storeInfo.js';
+import { useCart } from '../../context/CartContext.jsx';
 import { useI18n } from '../../i18n/I18nContext.jsx';
 
 export default function ProductDetails({ product }) {
   const { t } = useI18n();
+  const { addToCart, getItemQuantity } = useCart();
   const images = useMemo(() => {
     const unique = [...new Set([product.image, ...(product.gallery || [])].filter(Boolean))];
     return unique.length ? unique : [product.image];
@@ -19,6 +20,7 @@ export default function ProductDetails({ product }) {
   const activeImage = images[activeIndex] || product.image;
   const inStock = product.stock !== 'out_of_stock';
   const stockText = inStock ? 'En stock' : 'Rupture de stock';
+  const cartQuantity = getItemQuantity(product.id);
   const keySpecs = [
     ['Processeur', product.processor],
     ['RAM', product.ram],
@@ -36,16 +38,16 @@ export default function ProductDetails({ product }) {
   };
 
   return (
-    <section className="container-shell py-10 md:py-12">
+    <section className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 lg:px-8 md:py-12">
       <Breadcrumb items={[{ label: t('shop'), to: '/shop' }, { label: product.name }]} />
-      <div className="grid min-w-0 gap-10 lg:grid-cols-[minmax(0,1.12fr)_minmax(0,0.88fr)]">
-        <div className="space-y-4">
+      <div className="grid min-w-0 grid-cols-1 items-start gap-6 lg:grid-cols-2 lg:gap-10">
+        <div className="w-full space-y-4 lg:max-w-2xl">
           <Card className="group relative overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800">
             <ProductImage
               src={activeImage}
               alt={product.name}
-              className="aspect-[4/3] min-h-[320px] md:min-h-[500px]"
-              imageClassName="p-8 md:p-10 object-contain group-hover:scale-105"
+              className="aspect-[4/3] min-h-[240px] sm:min-h-[360px] md:min-h-[500px]"
+              imageClassName="p-5 sm:p-8 md:p-10 object-contain group-hover:scale-105"
               priority
             />
             <button
@@ -89,83 +91,91 @@ export default function ProductDetails({ product }) {
                     : 'border-gray-200 hover:border-gray-400 dark:border-gray-700'
                 }`}
               >
-                <ProductImage src={item} alt="" className="h-24" imageClassName="p-2 object-contain" />
+                <ProductImage src={item} alt="" className="h-20 sm:h-24" imageClassName="p-2 object-contain" />
               </button>
             ))}
           </div>
         </div>
 
-        <Card className="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-gray-800 md:p-8">
-          <Badge>{product.badge}</Badge>
-          <h1 className="mt-4 text-3xl font-black text-gray-900 dark:text-white md:text-4xl leading-tight">
-            {product.name}
-          </h1>
-          <div className="mt-3 flex flex-wrap items-center gap-2 text-sm font-semibold">
-            <span className="flex items-center gap-1 text-amber-500">
-              <Star className="h-5 w-5 fill-current" /> {product.rating}
-            </span>
-            <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs text-gray-600 dark:bg-gray-700 dark:text-gray-300">{product.brand}</span>
-            <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs text-gray-600 dark:bg-gray-700 dark:text-gray-300">{product.category}</span>
-            <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
-              inStock
-                ? 'bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-400'
-                : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400'
-            }`}>
-              {stockText}
-            </span>
-          </div>
-          <p className="mt-6 max-h-52 overflow-y-auto pr-2 text-base leading-8 text-gray-600 dark:text-gray-400">
-            {product.shortDescription || product.description}
-          </p>
-
-          {/* Price */}
-          <div className="mt-6 flex items-end gap-3">
-            <span className="text-4xl font-black text-gray-900 dark:text-white">{product.price.toLocaleString()} DH</span>
-            {product.oldPrice ? (
-              <span className="text-lg font-semibold text-gray-400 line-through">{product.oldPrice.toLocaleString()} DH</span>
-            ) : null}
-          </div>
-
-          {/* Info cards */}
-          <div className="mt-6 grid gap-3 sm:grid-cols-3">
-            <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4 text-sm font-semibold text-gray-700 dark:border-gray-700 dark:bg-gray-700/50 dark:text-gray-300">
-              <ShieldCheck className="mb-2 h-5 w-5 text-gray-400" /> {t('warrantyLabel')} {product.warranty}
+        <div className="w-full lg:max-w-3xl lg:justify-self-end">
+          <Card className="w-full rounded-3xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800 sm:p-6 md:p-8">
+            <div className="flex justify-center lg:justify-start">
+              <Badge>{product.badge}</Badge>
             </div>
-            <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4 text-sm font-semibold text-gray-700 dark:border-gray-700 dark:bg-gray-700/50 dark:text-gray-300">
-              <Truck className="mb-2 h-5 w-5 text-gray-400" /> {product.freeDelivery ? t('freeDelivery') : 'Livraison disponible'}
+            <h1 className="mt-4 text-center text-2xl font-black leading-tight text-gray-900 dark:text-white lg:text-left sm:text-3xl md:text-4xl">
+              {product.name}
+            </h1>
+            <div className="mt-3 flex flex-wrap items-center justify-center gap-2 text-sm font-semibold lg:justify-start">
+              <span className="flex items-center gap-1 text-amber-500">
+                <Star className="h-5 w-5 fill-current" /> {Number(product.rating).toFixed(1)}
+              </span>
+              <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs text-gray-600 dark:bg-gray-700 dark:text-gray-300">{product.brand}</span>
+              <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs text-gray-600 dark:bg-gray-700 dark:text-gray-300">{product.category}</span>
+              <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
+                inStock
+                  ? 'bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-400'
+                  : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400'
+              }`}>
+                {stockText}
+              </span>
             </div>
-            <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4 text-sm font-semibold text-gray-700 dark:border-gray-700 dark:bg-gray-700/50 dark:text-gray-300">
-              <ShieldCheck className="mb-2 h-5 w-5 text-green-500" /> {stockText}
+            <p className="mt-6 max-h-none overflow-visible pr-0 text-sm leading-7 text-gray-600 dark:text-gray-400 sm:text-base lg:text-left">
+              {product.shortDescription || product.description}
+            </p>
+
+            <div className="mt-6 flex flex-wrap items-end justify-center gap-3 lg:justify-start">
+              <span className="text-3xl font-black text-gray-900 dark:text-white sm:text-4xl">{product.price.toLocaleString()} DH</span>
+              {product.oldPrice ? (
+                <span className="text-base font-semibold text-gray-400 line-through sm:text-lg">{product.oldPrice.toLocaleString()} DH</span>
+              ) : null}
             </div>
-          </div>
 
-          {/* WhatsApp CTA */}
-          <div className="mt-7">
-            <a
-              href={whatsappLink(`Bonjour, je suis intéressé par ce produit: ${product.name}`)}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-green-500/90 px-8 py-4 text-base font-bold text-white shadow-sm transition-colors duration-200 hover:bg-green-500"
-            >
-              <MessageCircle className="h-5 w-5" /> Commander sur WhatsApp
-            </a>
-          </div>
+            <div className="mt-6 grid gap-3 sm:grid-cols-3">
+              <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4 text-sm font-semibold text-gray-700 dark:border-gray-700 dark:bg-gray-700/50 dark:text-gray-300">
+                <ShieldCheck className="mb-2 h-5 w-5 text-gray-400" /> {t('warrantyLabel')} {product.warranty}
+              </div>
+              <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4 text-sm font-semibold text-gray-700 dark:border-gray-700 dark:bg-gray-700/50 dark:text-gray-300">
+                <Truck className="mb-2 h-5 w-5 text-gray-400" /> {product.freeDelivery ? t('freeDelivery') : 'Livraison disponible'}
+              </div>
+              <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4 text-sm font-semibold text-gray-700 dark:border-gray-700 dark:bg-gray-700/50 dark:text-gray-300">
+                <ShieldCheck className="mb-2 h-5 w-5 text-green-500" /> {stockText}
+              </div>
+            </div>
 
-          {/* Specs table */}
-          <Card className="mt-8 overflow-hidden rounded-2xl border border-gray-200 bg-white text-gray-900">
-            <h2 className="border-b border-gray-200 px-5 py-4 text-base font-black text-slate-950">{t('specs')}</h2>
-            <table className="w-full text-sm">
-              <tbody>
-                {specs.map(([key, value]) => (
-                  <tr key={key} className="border-b border-gray-200 last:border-0">
-                    <th className="w-1/3 bg-gray-50 px-5 py-3 text-left font-semibold text-slate-800">{key}</th>
-                    <td className="px-5 py-3 text-gray-700">{value}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <div className="mt-7 grid gap-3 sm:grid-cols-2">
+              <button
+                type="button"
+                onClick={() => addToCart(product)}
+                className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-gray-900 px-6 py-4 text-base font-bold text-white shadow-sm transition-colors duration-200 hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-white"
+              >
+                <ShoppingCart className="h-5 w-5" />
+                <span>{cartQuantity > 0 ? `Ajouter (${cartQuantity})` : 'Ajouter au panier'}</span>
+              </button>
+              <a
+                href={whatsappLink(`Bonjour, je suis intéressé par ce produit: ${product.name}`)}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-green-500/90 px-8 py-4 text-base font-bold text-white shadow-sm transition-colors duration-200 hover:bg-green-500"
+              >
+                <MessageCircle className="h-5 w-5" /> Commander sur WhatsApp
+              </a>
+            </div>
+
+            <Card className="mt-8 overflow-hidden rounded-2xl border border-gray-200 bg-white text-gray-900 dark:border-gray-700 dark:bg-gray-900/40">
+              <h2 className="border-b border-gray-200 px-4 py-4 text-base font-black text-slate-950 dark:border-gray-700 dark:text-white">{t('specs')}</h2>
+              <table className="w-full table-fixed text-sm">
+                <tbody>
+                  {specs.map(([key, value]) => (
+                    <tr key={key} className="border-b border-gray-200 last:border-0 dark:border-gray-700">
+                      <th className="w-1/3 break-words bg-gray-900 px-4 py-3 text-left align-top font-semibold text-white">{key}</th>
+                      <td className="break-words bg-white px-4 py-3 text-gray-800 dark:text-gray-800">{value}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </Card>
           </Card>
-        </Card>
+        </div>
       </div>
 
       {lightboxOpen && (
