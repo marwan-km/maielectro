@@ -2,49 +2,55 @@ import { isSupabaseConfigured, supabase } from '../lib/supabaseClient.js';
 
 export const FALLBACK_REPAIR_IMAGE = '/images/fallback-product.svg';
 
-const REPAIR_IMAGE_MAP = {
-  'changement-ecran-laptop': FALLBACK_REPAIR_IMAGE,
-  'remplacement-batterie': FALLBACK_REPAIR_IMAGE,
-  'reparation-clavier': FALLBACK_REPAIR_IMAGE,
-  'upgrade-ssd-ram': FALLBACK_REPAIR_IMAGE,
-  'nettoyage-interne': FALLBACK_REPAIR_IMAGE,
-  'reparation-carte-mere': FALLBACK_REPAIR_IMAGE,
-  'diagnostic-complet': FALLBACK_REPAIR_IMAGE,
-  'reparation-macbook': FALLBACK_REPAIR_IMAGE,
-  'reparation-iphone': FALLBACK_REPAIR_IMAGE,
+const REPAIR_SERVICE_FALLBACKS = {
+  'changement-ecran-laptop': 'https://cdn.zyrosite.com/cdn-ecommerce/store_01JY2E5E0077V2R1PB8A0J0K8C/assets/e1f533f8-4292-4aef-b884-749505a41d8f.jpg',
+  'remplacement-batterie': 'https://cdn.zyrosite.com/cdn-ecommerce/store_01JY2E5E0077V2R1PB8A0J0K8C/assets/faab1dc3-30aa-455f-a2ee-4a86e967f5fc.jpg',
+  'reparation-clavier': 'https://cdn.zyrosite.com/cdn-ecommerce/store_01JY2E5E0077V2R1PB8A0J0K8C/assets/93ad5365-c360-4d78-9795-de73d423d02a.jpg',
+  'upgrade-ssd-ram': 'https://cdn.zyrosite.com/cdn-ecommerce/store_01JY2E5E0077V2R1PB8A0J0K8C/assets/f8ad6d46-24f6-4a3d-be4d-bb92c0b5987e.jpg',
+  'nettoyage-interne': '/images/repair/hero-repair.jpg',
+  'reparation-carte-mere': 'https://cdn.zyrosite.com/cdn-ecommerce/store_01JY2E5E0077V2R1PB8A0J0K8C/assets/1752435739901-cartmermacprom114pouce2020-01.jpg',
+  'diagnostic-complet': '/images/repair/system-install.jpg',
+  'reparation-macbook': 'https://cdn.zyrosite.com/cdn-ecommerce/store_01JY2E5E0077V2R1PB8A0J0K8C/assets/5dc83baf-74b2-4228-a4c2-995f24811e9a.png',
+  'reparation-iphone': 'https://cdn.zyrosite.com/cdn-ecommerce/store_01JY2E5E0077V2R1PB8A0J0K8C/assets/ea63ed8c-53b2-46a7-bce9-568e009853dc.jpg',
 };
 
 const REPAIR_IMAGE_FIT = {
-  'changement-ecran-laptop': 'contain',
-  'remplacement-batterie': 'contain',
-  'reparation-clavier': 'contain',
-  'upgrade-ssd-ram': 'contain',
+  'changement-ecran-laptop': 'cover',
+  'remplacement-batterie': 'cover',
+  'reparation-clavier': 'cover',
+  'upgrade-ssd-ram': 'cover',
   'nettoyage-interne': 'cover',
-  'reparation-carte-mere': 'contain',
+  'reparation-carte-mere': 'cover',
   'diagnostic-complet': 'cover',
   'reparation-macbook': 'cover',
   'reparation-iphone': 'cover',
 };
 
+const IMAGE_FIELDS = ['image_url', 'image', 'cover_url', 'thumbnail_url', 'coverUrl', 'thumbnailUrl'];
+
 const isBadImage = (value) => {
   const text = String(value || '').trim();
   if (!text) return true;
   if (text === FALLBACK_REPAIR_IMAGE) return true;
+  if (text === 'null' || text === 'undefined') return true;
   if (text.includes('source.unsplash.com')) return true;
   if (text.includes('placeholder')) return true;
   return false;
 };
 
-export const getRepairImageForSlug = (slug) => REPAIR_IMAGE_MAP[slug] || FALLBACK_REPAIR_IMAGE;
+const pickRepairImage = (row) => {
+  for (const field of IMAGE_FIELDS) {
+    const candidate = row?.[field];
+    if (!isBadImage(candidate)) return candidate;
+  }
+  return '';
+};
+
+export const getRepairImageForSlug = (slug) => REPAIR_SERVICE_FALLBACKS[slug] || FALLBACK_REPAIR_IMAGE;
 
 export const getRepairImageFitForSlug = (slug) => REPAIR_IMAGE_FIT[slug] || 'cover';
 
-export const resolveRepairImage = (row) => {
-  const mapped = getRepairImageForSlug(row?.slug);
-  if (mapped) return mapped;
-  if (row?.image && !isBadImage(row.image)) return row.image;
-  return FALLBACK_REPAIR_IMAGE;
-};
+export const resolveRepairImage = (row) => pickRepairImage(row) || getRepairImageForSlug(row?.slug);
 
 export const mapDbRepairServiceToUi = (row) => ({
   id: row.id || row.slug,

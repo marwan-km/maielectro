@@ -1,26 +1,27 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { resolveProductCategory, resolveProductSubCategory } from '../utils/productClassification.js';
 
 const ProductDataContext = createContext(null);
 
 const filterProductsByCategory = (items, categoryId) => {
   const category = String(categoryId || '').toLowerCase();
   if (!category || category === 'shop') return items;
-  if (category === 'laptops') return items.filter((product) => product.category === 'laptops');
+  if (category === 'laptops') return items.filter((product) => resolveProductCategory(product) === 'laptops');
   if (category === 'macbook') {
     return items.filter((product) => {
       const name = String(product.name || '').toLowerCase();
       const brand = String(product.brand || '').toLowerCase();
-      return product.category === 'laptops' && (/macbook|ipad/.test(name) || brand.includes('apple'));
+      return resolveProductCategory(product) === 'laptops' && (/macbook|ipad/.test(name) || brand.includes('apple'));
     });
   }
   if (['lenovo', 'dell', 'hp'].includes(category)) {
     return items.filter((product) => {
       const brand = String(product.brand || '').toLowerCase();
       const name = String(product.name || '').toLowerCase();
-      return product.category === 'laptops' && (brand.includes(category) || name.includes(category));
+      return resolveProductCategory(product) === 'laptops' && (brand.includes(category) || name.includes(category));
     });
   }
-  return items.filter((product) => product.category === category || product.subCategory === category);
+  return items.filter((product) => resolveProductCategory(product) === category || resolveProductSubCategory(product) === category);
 };
 
 const loadProducts = async () => {

@@ -39,6 +39,9 @@ export const applyProductFilters = (items, filters) => {
         product.category,
         product.subCategory,
         product.sub_category,
+        product.product_type,
+        product.type,
+        product.tags,
         product.description,
         product.model,
       ].some((value) => String(value || '').toLowerCase().includes(search));

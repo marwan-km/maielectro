@@ -1,6 +1,7 @@
 import { isSupabaseConfigured, supabase } from '../lib/supabaseClient.js';
 import { uploadProductImage as uploadProductImageToStorage } from './storageService.js';
 import { addAdminLog, addStockLog } from './logService.js';
+import { matchesProductQuery, resolveProductCategory, resolveProductSubCategory } from '../utils/productClassification.js';
 
 export const FALLBACK_PRODUCT_IMAGE = '/images/fallback-product.svg';
 
@@ -32,44 +33,49 @@ const isUsableProductImage = (value) => {
   return isRemoteImage(text) || isSupabaseProductImage(text);
 };
 
-export const mapDbProductToUiProduct = (row) => ({
-  id: row.id,
-  slug: row.slug,
-  name: row.name,
-  brand: row.brand || '',
-  category: row.category || '',
-  subCategory: row.sub_category || row.subCategory || '',
-  price: Number(row.price || 0),
-  oldPrice: row.old_price ?? row.oldPrice ?? null,
-  image: firstImage(row),
-  gallery: toArray(row.gallery).filter(isUsableProductImage),
-  rating: Number(row.rating || 4.7),
-  warranty: row.warranty || '',
-  stock: row.stock || 'in_stock',
-  stockQuantity: Number(row.stock_quantity ?? row.stockQuantity ?? 1),
-  description: row.description || '',
-  shortDescription: row.short_description || row.shortDescription || '',
-  specs: toArray(row.specs),
-  badge: row.badge || '',
-  featured: Boolean(row.featured),
-  condition: row.condition || '',
-  processor: row.processor || '',
-  ram: row.ram || '',
-  storage: row.storage || '',
-  screenSize: row.screen_size || row.screenSize || '',
-  graphics: row.graphics || '',
-  color: row.color || '',
-  model: row.model || '',
-  year: row.year ?? '',
-  deliveryAvailable: row.delivery_available ?? row.deliveryAvailable ?? true,
-  freeDelivery: row.free_delivery ?? row.freeDelivery ?? true,
-  softwareIncluded: row.software_included || row.softwareIncluded || '',
-  views: Number(row.views || 0),
-  isActive: row.is_active ?? row.isActive ?? true,
-  sortOrder: Number(row.sort_order ?? row.sortOrder ?? 0),
-  createdAt: row.created_at || row.createdAt || '',
-  updatedAt: row.updated_at || row.updatedAt || '',
-});
+export const mapDbProductToUiProduct = (row) => {
+  const resolvedCategory = resolveProductCategory(row);
+  const resolvedSubCategory = resolveProductSubCategory(row, resolvedCategory);
+
+  return {
+    id: row.id,
+    slug: row.slug,
+    name: row.name,
+    brand: row.brand || '',
+    category: resolvedCategory || '',
+    subCategory: resolvedSubCategory || '',
+    price: Number(row.price || 0),
+    oldPrice: row.old_price ?? row.oldPrice ?? null,
+    image: firstImage(row),
+    gallery: toArray(row.gallery).filter(isUsableProductImage),
+    rating: Number(row.rating || 4.7),
+    warranty: row.warranty || '',
+    stock: row.stock || 'in_stock',
+    stockQuantity: Number(row.stock_quantity ?? row.stockQuantity ?? 1),
+    description: row.description || '',
+    shortDescription: row.short_description || row.shortDescription || '',
+    specs: toArray(row.specs),
+    badge: row.badge || '',
+    featured: Boolean(row.featured),
+    condition: row.condition || '',
+    processor: row.processor || '',
+    ram: row.ram || '',
+    storage: row.storage || '',
+    screenSize: row.screen_size || row.screenSize || '',
+    graphics: row.graphics || '',
+    color: row.color || '',
+    model: row.model || '',
+    year: row.year ?? '',
+    deliveryAvailable: row.delivery_available ?? row.deliveryAvailable ?? true,
+    freeDelivery: row.free_delivery ?? row.freeDelivery ?? true,
+    softwareIncluded: row.software_included || row.softwareIncluded || '',
+    views: Number(row.views || 0),
+    isActive: row.is_active ?? row.isActive ?? true,
+    sortOrder: Number(row.sort_order ?? row.sortOrder ?? 0),
+    createdAt: row.created_at || row.createdAt || '',
+    updatedAt: row.updated_at || row.updatedAt || '',
+  };
+};
 
 export const mapUiProductToDbProduct = (product) => ({
   slug: product.slug,
@@ -114,7 +120,7 @@ let localFallbackProductsPromise = null;
 
 const getLocalFallbackProducts = async () => {
   if (!localFallbackProductsPromise) {
-    localFallbackProductsPromise = import('../data/products.js').then(({ products }) => products.map((product) => ({
+    localFallbackProductsPromise = import('../data/products.js').then(({ products }) => products.map((product) => normalizeProduct({
       ...product,
       image: isSupabaseProductImage(product.image) ? product.image : FALLBACK_PRODUCT_IMAGE,
       gallery: toArray(product.gallery).filter(isSupabaseProductImage),
@@ -211,9 +217,8 @@ export async function getProductsByBrand(brand) {
 
 export async function searchProducts(query) {
   const products = await getProducts();
-  const q = String(query || '').toLowerCase();
-  if (!q) return products;
-  return products.filter(p => p.name.toLowerCase().includes(q) || p.description?.toLowerCase().includes(q) || p.brand?.toLowerCase().includes(q));
+  if (!String(query || '').trim()) return products;
+  return products.filter((product) => matchesProductQuery(product, query));
 }
 
 export async function saveProduct(product, adminEmail) {
