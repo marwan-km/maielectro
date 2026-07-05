@@ -86,7 +86,7 @@ function ProductCard({ product }) {
               event.stopPropagation();
               addToCart(product);
             }}
-            className="inline-flex h-12 flex-1 items-center justify-center gap-2 rounded-xl bg-gray-900 px-4 text-sm font-semibold text-white transition-colors duration-200 hover:bg-gray-700 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-white"
+            className="inline-flex h-12 w-full flex-1 items-center justify-center gap-2 rounded-xl bg-gray-900 px-4 text-sm font-semibold text-white transition-colors duration-200 hover:bg-gray-700 sm:w-auto dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-white"
             aria-label="Ajouter au panier"
             title={cartQuantity > 0 ? `Déjà ajouté (${cartQuantity})` : 'Ajouter au panier'}
           >
@@ -100,7 +100,7 @@ function ProductCard({ product }) {
               event.stopPropagation();
               addToCart(product);
             }}
-            className="relative inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-green-500 text-white transition-colors duration-200 hover:bg-green-600"
+            className="relative hidden h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-green-500 text-white transition-colors duration-200 hover:bg-green-600 sm:inline-flex"
             aria-label="Ajouter au panier"
             title={cartQuantity > 0 ? `Déjà ajouté (${cartQuantity})` : 'Ajouter au panier'}
           >
