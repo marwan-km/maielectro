@@ -3,8 +3,8 @@ import { addAdminLog } from './logService.js';
 
 export const defaultSettings = {
   store_name: 'MaiElectro',
-  phone: '06XXXXXXXXXX',
-  whatsapp: '06XXXXXXXXXX',
+  phone: '0725952161',
+  whatsapp: '212725952161',
   address: 'Casablanca, Maroc',
   hours: 'Lun-Sam 10:00-20:00',
   promo_bar_text: 'Livraison rapide et garantie boutique sur une sélection de produits.',

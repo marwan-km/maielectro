@@ -155,8 +155,8 @@ create unique index if not exists site_settings_key_key on public.site_settings 
 insert into public.site_settings (key, value)
 values
   ('store_name', '"MaiElectro"'::jsonb),
-  ('phone', '"06XXXXXXXXXX"'::jsonb),
-  ('whatsapp', '"06XXXXXXXXXX"'::jsonb),
+  ('phone', '"0725952161"'::jsonb),
+  ('whatsapp', '"212725952161"'::jsonb),
   ('address', '"Boutique Derb Ghallef, Marché Salam, Rue 1, N°86 Casablanca – Maarif"'::jsonb),
   ('hours', '"10h00 - 20h30"'::jsonb),
   ('promo_bar_text', '"عروض خصم على خدمات إصلاح الحواسيب مع شحن مجاني"'::jsonb),

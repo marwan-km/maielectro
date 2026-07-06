@@ -296,7 +296,7 @@ export default function AdminUsers() {
           <Card className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl dark:bg-card-dark">
             <div className="mb-4 flex items-center justify-between">
               <h3 className="text-xl font-black">{editingAdmin ? 'Modifier Admin' : 'Nouvel Admin'}</h3>
-              <HeroButton type="button" isIconOnly type="button" onClick={() => setShowModal(false)} variant="flat" radius="lg"><X className="h-4 w-4" /></HeroButton>
+              <HeroButton type="button" isIconOnly onClick={() => setShowModal(false)} variant="flat" radius="lg"><X className="h-4 w-4" /></HeroButton>
             </div>
             <form onSubmit={handleSubmit} className="space-y-4">
               {!editingAdmin && (
@@ -349,7 +349,7 @@ export default function AdminUsers() {
                 <h3 className="text-xl font-black">Modifier mot de passe</h3>
                 <p className="mt-1 text-sm text-slate-500">{passwordAdmin.email}</p>
               </div>
-              <HeroButton type="button" isIconOnly type="button" onClick={() => setPasswordAdmin(null)} variant="flat" radius="lg"><X className="h-4 w-4" /></HeroButton>
+              <HeroButton type="button" isIconOnly onClick={() => setPasswordAdmin(null)} variant="flat" radius="lg"><X className="h-4 w-4" /></HeroButton>
             </div>
             <form onSubmit={handlePasswordSubmit} className="space-y-4">
               <label className="block">

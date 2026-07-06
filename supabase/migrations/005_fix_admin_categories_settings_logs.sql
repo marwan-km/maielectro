@@ -101,8 +101,8 @@ alter table public.products
 insert into public.site_settings (key, value)
 values
   ('store_name', '"MaiElectro"'::jsonb),
-  ('phone', '"06XXXXXXXXXX"'::jsonb),
-  ('whatsapp', '"06XXXXXXXXXX"'::jsonb),
+  ('phone', '"0725952161"'::jsonb),
+  ('whatsapp', '"212725952161"'::jsonb),
   ('address', '"Casablanca, Maroc"'::jsonb),
   ('hours', '"Lun-Sam 10:00-20:00"'::jsonb),
   ('promo_bar_text', '"Livraison rapide et garantie boutique sur une sélection de produits."'::jsonb),
