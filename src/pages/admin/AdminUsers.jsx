@@ -263,21 +263,21 @@ export default function AdminUsers() {
                   <td className="px-5 py-4 text-right">
                     <div className="flex flex-wrap justify-end gap-2">
                       {auth.isSuperAdmin && (
-                        <HeroButton onPress={() => openPasswordModal(admin)} title="Modifier mot de passe" variant="bordered" radius="lg" className="border-slate-200 text-slate-600 dark:border-slate-700 dark:text-slate-300">
+                        <HeroButton type="button" onClick={() => openPasswordModal(admin)} title="Modifier mot de passe" variant="bordered" radius="lg" className="border-slate-200 text-slate-600 dark:border-slate-700 dark:text-slate-300">
                           <KeyRound className="h-4 w-4" />
                           <span>Modifier mot de passe</span>
                         </HeroButton>
                       )}
-                      <HeroButton isIconOnly onPress={() => openEditModal(admin)} title="Modifier admin" variant="bordered" radius="lg" className="border-slate-200 text-slate-500 dark:border-slate-700">
+                      <HeroButton isIconOnly type="button" onClick={() => openEditModal(admin)} title="Modifier admin" variant="bordered" radius="lg" className="border-slate-200 text-slate-500 dark:border-slate-700">
                         <Edit className="h-4 w-4" />
                       </HeroButton>
                       {getAdminActive(admin) && (
-                        <HeroButton isIconOnly onPress={() => requestDeactivate(admin)} title="Désactiver" variant="bordered" radius="lg" color="warning">
+                        <HeroButton isIconOnly type="button" onClick={() => requestDeactivate(admin)} title="Désactiver" variant="bordered" radius="lg" color="warning">
                           <Power className="h-4 w-4" />
                         </HeroButton>
                       )}
                       {!getAdminActive(admin) && (
-                        <HeroButton isIconOnly onPress={() => requestDelete(admin)} title="Supprimer définitivement" variant="bordered" radius="lg" color="danger">
+                        <HeroButton isIconOnly type="button" onClick={() => requestDelete(admin)} title="Supprimer définitivement" variant="bordered" radius="lg" color="danger">
                           <Trash2 className="h-4 w-4" />
                         </HeroButton>
                       )}
@@ -296,7 +296,7 @@ export default function AdminUsers() {
           <Card className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl dark:bg-card-dark">
             <div className="mb-4 flex items-center justify-between">
               <h3 className="text-xl font-black">{editingAdmin ? 'Modifier Admin' : 'Nouvel Admin'}</h3>
-              <HeroButton type="button" isIconOnly onPress={() => setShowModal(false)} variant="flat" radius="lg"><X className="h-4 w-4" /></HeroButton>
+              <HeroButton type="button" isIconOnly type="button" onClick={() => setShowModal(false)} variant="flat" radius="lg"><X className="h-4 w-4" /></HeroButton>
             </div>
             <form onSubmit={handleSubmit} className="space-y-4">
               {!editingAdmin && (
@@ -333,7 +333,7 @@ export default function AdminUsers() {
               </label>
               
               <div className="mt-6 flex justify-end gap-3">
-                <HeroButton type="button" onPress={() => setShowModal(false)} variant="light" radius="lg" className="font-bold">Annuler</HeroButton>
+                <HeroButton type="button" onClick={() => setShowModal(false)} variant="light" radius="lg" className="font-bold">Annuler</HeroButton>
                 <Button type="submit" disabled={saving}>{editingAdmin ? 'Enregistrer' : 'Créer admin'}</Button>
               </div>
             </form>
@@ -349,7 +349,7 @@ export default function AdminUsers() {
                 <h3 className="text-xl font-black">Modifier mot de passe</h3>
                 <p className="mt-1 text-sm text-slate-500">{passwordAdmin.email}</p>
               </div>
-              <HeroButton type="button" isIconOnly onPress={() => setPasswordAdmin(null)} variant="flat" radius="lg"><X className="h-4 w-4" /></HeroButton>
+              <HeroButton type="button" isIconOnly type="button" onClick={() => setPasswordAdmin(null)} variant="flat" radius="lg"><X className="h-4 w-4" /></HeroButton>
             </div>
             <form onSubmit={handlePasswordSubmit} className="space-y-4">
               <label className="block">
@@ -361,7 +361,7 @@ export default function AdminUsers() {
                 <Input type="password" required minLength={8} value={passwordForm.confirmPassword} onChange={e => setPasswordForm({ ...passwordForm, confirmPassword: e.target.value })} radius="lg" variant="bordered" />
               </label>
               <div className="mt-6 flex justify-end gap-3">
-                <HeroButton type="button" onPress={() => setPasswordAdmin(null)} variant="light" radius="lg" className="font-bold">Annuler</HeroButton>
+                <HeroButton type="button" onClick={() => setPasswordAdmin(null)} variant="light" radius="lg" className="font-bold">Annuler</HeroButton>
                 <Button type="submit" disabled={passwordSaving}>Update Password</Button>
               </div>
             </form>

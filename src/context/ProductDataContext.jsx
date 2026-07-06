@@ -66,15 +66,22 @@ export function ProductDataProvider({ children }) {
     };
   }, [products]);
 
-  const productBySlug = useMemo(() => new Map(products.map((product) => [product.slug, product])), [products]);
+  const productByKey = useMemo(() => {
+    const map = new Map();
+    products.forEach((product) => {
+      if (product.slug) map.set(String(product.slug), product);
+      if (product.id != null) map.set(String(product.id), product);
+    });
+    return map;
+  }, [products]);
 
   const value = useMemo(() => ({
     products,
     loading,
     refreshProducts,
-    getProductBySlug: (slug) => productBySlug.get(slug),
+    getProductBySlug: (slug) => productByKey.get(String(slug)),
     getProductsByCategory: productsByCategory,
-  }), [products, loading, refreshProducts, productBySlug, productsByCategory]);
+  }), [products, loading, refreshProducts, productByKey, productsByCategory]);
 
   return <ProductDataContext.Provider value={value}>{children}</ProductDataContext.Provider>;
 }

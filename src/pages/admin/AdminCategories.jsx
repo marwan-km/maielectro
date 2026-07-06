@@ -114,10 +114,10 @@ export default function AdminCategories() {
                     <td className="px-5 py-4">
                       <div className="flex justify-end gap-2">
                         <PermissionGuard permission={PERMISSIONS.CATEGORIES_UPDATE}>
-                          <button onClick={() => setForm(category)} className="rounded-xl border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-600 hover:bg-gray-50 hover:border-gray-300 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-700">Modifier</button>
+                          <button type="button" onClick={() => setForm(category)} className="rounded-xl border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-600 hover:bg-gray-50 hover:border-gray-300 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-700">Modifier</button>
                         </PermissionGuard>
                         <PermissionGuard permission={PERMISSIONS.CATEGORIES_DELETE}>
-                          <button onClick={() => setDeleteTarget(category)} className="grid h-10 w-10 place-items-center rounded-xl border border-red-200 text-red-600 hover:bg-red-50 dark:border-red-900/50 dark:text-red-300"><Trash2 className="h-4 w-4" /></button>
+                          <button type="button" onClick={() => setDeleteTarget(category)} className="grid h-10 w-10 place-items-center rounded-xl border border-red-200 text-red-600 hover:bg-red-50 dark:border-red-900/50 dark:text-red-300"><Trash2 className="h-4 w-4" /></button>
                         </PermissionGuard>
                       </div>
                     </td>

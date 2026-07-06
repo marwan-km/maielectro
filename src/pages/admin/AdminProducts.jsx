@@ -148,15 +148,29 @@ export default function AdminProducts() {
                   <td className="px-5 py-4 text-slate-500">{formatAdminDateOnly(product.updatedAt)}</td>
                   <td className="px-5 py-4">
                     <div className="flex justify-end gap-2">
-                      <HeroButton as="a" href={`/product/${product.slug}`} target="_blank" rel="noreferrer" isIconOnly variant="bordered" radius="lg" className="border-slate-200 text-slate-600 dark:border-slate-700 dark:text-slate-300"><Eye className="h-4 w-4" /></HeroButton>
+                      <Link
+                        to={`/product/${product.slug || product.id}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 text-slate-600 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                        aria-label="Voir le produit"
+                      >
+                        <Eye className="h-4 w-4" />
+                      </Link>
                       <PermissionGuard permission={PERMISSIONS.STOCK_UPDATE}>
                         <StockToggleButton product={product} onToggle={toggleStock} />
                       </PermissionGuard>
                       <PermissionGuard permission={PERMISSIONS.PRODUCTS_UPDATE}>
-                        <HeroButton as={Link} to={`/admin/products/edit/${product.id}`} isIconOnly variant="bordered" radius="lg" className="border-slate-200 text-slate-600 dark:border-slate-700 dark:text-slate-300"><Edit className="h-4 w-4" /></HeroButton>
+                        <Link
+                          to={`/admin/products/edit/${product.id}`}
+                          className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 text-slate-600 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                          aria-label="Modifier produit"
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Link>
                       </PermissionGuard>
                       <PermissionGuard permission={PERMISSIONS.PRODUCTS_DELETE}>
-                        <HeroButton onPress={() => setDeleteTarget(product)} isIconOnly variant="bordered" radius="lg" color="danger"><Trash2 className="h-4 w-4" /></HeroButton>
+                        <HeroButton type="button" onClick={() => setDeleteTarget(product)} isIconOnly variant="bordered" radius="lg" color="danger"><Trash2 className="h-4 w-4" /></HeroButton>
                       </PermissionGuard>
                     </div>
                   </td>

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { isSupabaseConfigured, supabase } from '../../lib/supabaseClient.js';
 import { Save, X } from 'lucide-react';
 import AdminLayout from './AdminLayout.jsx';
 import ImageUploader from '../../components/admin/ImageUploader.jsx';
@@ -9,7 +10,7 @@ import usePermissions from '../../hooks/usePermissions.js';
 import PermissionGuard from '../../components/admin/PermissionGuard.jsx';
 import { PERMISSIONS } from '../../config/permissions.js';
 import { brands, categories } from '../../data/categories.js';
-import { getProducts, saveProduct } from '../../services/productService.js';
+import { getProducts, mapDbProductToUiProduct, saveProduct } from '../../services/productService.js';
 
 const emptyProduct = {
   name: '',
@@ -75,14 +76,50 @@ export default function AdminProductForm() {
 
   useEffect(() => {
     if (!isEdit) return;
-    getProducts({ fallback: false }).then((items) => {
-      const found = items.find((item) => String(item.id) === String(id));
-      if (found) {
-        setProduct(found);
-        setSpecsText(JSON.stringify(found.specs || [], null, 2));
-        setGalleryText((found.gallery || []).join('\n'));
+    let cancelled = false;
+
+    const loadProduct = async () => {
+      try {
+        if (!isSupabaseConfigured) {
+          setError('Supabase is not configured.');
+          return;
+        }
+
+        const { data, error: loadError } = await supabase
+          .from('products')
+          .select('*')
+          .eq('id', id)
+          .maybeSingle();
+
+        if (cancelled) return;
+        if (loadError) throw loadError;
+
+        if (data) {
+          const found = mapDbProductToUiProduct(data);
+          setProduct(found);
+          setSpecsText(JSON.stringify(found.specs || [], null, 2));
+          setGalleryText((found.gallery || []).join('\n'));
+          return;
+        }
+
+        const items = await getProducts({ fallback: false });
+        const fallbackProduct = items.find((item) => String(item.id) === String(id));
+        if (fallbackProduct && !cancelled) {
+          setProduct(fallbackProduct);
+          setSpecsText(JSON.stringify(fallbackProduct.specs || [], null, 2));
+          setGalleryText((fallbackProduct.gallery || []).join('\n'));
+        } else if (!cancelled) {
+          setError('Produit introuvable.');
+        }
+      } catch (err) {
+        if (!cancelled) setError(err.message || 'Produit introuvable.');
       }
-    });
+    };
+
+    loadProduct();
+    return () => {
+      cancelled = true;
+    };
   }, [id, isEdit]);
 
   const update = (key, value) => setProduct((current) => ({ ...current, [key]: value }));
