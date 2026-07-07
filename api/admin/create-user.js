@@ -8,7 +8,7 @@ import {
   validatePassword,
 } from './_adminAuth.js';
 
-const optionalColumns = ['full_name', 'name', 'is_active', 'permissions', 'created_by', 'updated_at'];
+const optionalColumns = ['full_name', 'name', 'active', 'permissions', 'created_by', 'updated_at'];
 
 function removeMissingColumn(row, error) {
   const message = String(error?.message || '') + ' ' + String(error?.details || '');
@@ -89,7 +89,7 @@ export default async function handler(req, res) {
       role,
       full_name: fullName,
       name: fullName,
-      is_active: true,
+      active: true,
       permissions: {},
       created_by: requester.email,
       updated_at: new Date().toISOString(),

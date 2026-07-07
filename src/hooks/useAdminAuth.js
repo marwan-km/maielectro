@@ -3,75 +3,133 @@ import { isSupabaseConfigured, supabase } from '../lib/supabaseClient.js';
 import { getAdminProfileBySession } from '../services/adminService.js';
 import { addAdminLog } from '../services/logService.js';
 
-export default function useAdminAuth() {
-  const [session, setSession] = useState(null);
-  const [admin, setAdmin] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+const authState = {
+  session: null,
+  admin: null,
+  loading: true,
+  error: '',
+};
 
-  const loadAdmin = async (nextSession) => {
-    if (!isSupabaseConfigured || !nextSession) {
-      setAdmin(null);
-      setLoading(false);
+const listeners = new Set();
+let initialized = false;
+let subscription = null;
+let loadId = 0;
+
+const notify = () => {
+  const snapshot = { ...authState };
+  listeners.forEach((listener) => listener(snapshot));
+};
+
+const setAuthState = (patch) => {
+  Object.assign(authState, patch);
+  notify();
+};
+
+const loadAdmin = async (nextSession, { clearOnMissingSession = true } = {}) => {
+  const currentLoadId = ++loadId;
+
+  if (!isSupabaseConfigured || !nextSession) {
+    setAuthState({
+      session: nextSession || null,
+      admin: clearOnMissingSession ? null : authState.admin,
+      loading: false,
+      error: '',
+    });
+    return;
+  }
+
+  setAuthState({ session: nextSession, loading: true });
+
+  try {
+    const loggedInEmail = nextSession.user?.email || '';
+    const profile = await getAdminProfileBySession(nextSession);
+    if (currentLoadId !== loadId) return;
+
+    if (!profile) {
+      setAuthState({
+        admin: authState.admin,
+        loading: false,
+        error: authState.admin ? '' : `Accès refusé pour: ${loggedInEmail || 'email inconnu'}. Ce compte n'est pas un administrateur actif autorisé.`,
+      });
       return;
     }
-    try {
-      const loggedInEmail = nextSession.user?.email || '';
-      const profile = await getAdminProfileBySession(nextSession);
-      if (!profile) {
-        setError(`Accès refusé pour: ${loggedInEmail || 'email inconnu'}. Ce compte n'est pas un administrateur actif autorisé.`);
-        setAdmin(null);
-      } else {
-        setAdmin(profile);
-        setError('');
-      }
-    } catch (err) {
-      const loggedInEmail = nextSession?.user?.email || 'email inconnu';
-      setError(`Vérification admin impossible pour ${loggedInEmail}: ${err.message || 'erreur inconnue'}. Vérifiez la table public.admin_users, les politiques RLS et la configuration Supabase.`);
-      setAdmin(null);
-    } finally {
-      setLoading(false);
+
+    setAuthState({ admin: profile, loading: false, error: '' });
+  } catch (err) {
+    if (currentLoadId !== loadId) return;
+    const loggedInEmail = nextSession?.user?.email || 'email inconnu';
+    setAuthState({
+      admin: authState.admin,
+      loading: false,
+      error: authState.admin ? '' : `Vérification admin impossible pour ${loggedInEmail}: ${err.message || 'erreur inconnue'}. Vérifiez la table public.admin_users, les politiques RLS et la configuration Supabase.`,
+    });
+  }
+};
+
+const initAuthStore = () => {
+  if (initialized) return;
+  initialized = true;
+
+  if (!isSupabaseConfigured) {
+    setAuthState({ loading: false });
+    return;
+  }
+
+  supabase.auth.getSession().then(({ data }) => {
+    loadAdmin(data.session);
+  }).catch((err) => {
+    setAuthState({ loading: false, error: err.message || 'Session admin introuvable.' });
+  });
+
+  const { data: listener } = supabase.auth.onAuthStateChange(async (event, nextSession) => {
+    if (event === 'SIGNED_OUT') {
+      await loadAdmin(null);
+      return;
     }
-  };
+
+    if (event === 'SIGNED_IN' && nextSession?.user?.email) {
+      try {
+        await addAdminLog({ adminEmail: nextSession.user.email, action: 'login success', entityType: 'auth', entityId: nextSession.user.id });
+      } catch {}
+    }
+
+    await loadAdmin(nextSession, { clearOnMissingSession: event === 'SIGNED_OUT' });
+  });
+
+  subscription = listener.subscription;
+};
+
+export default function useAdminAuth() {
+  const [state, setState] = useState({ ...authState });
 
   useEffect(() => {
-    if (!isSupabaseConfigured) {
-      setLoading(false);
-      return undefined;
-    }
+    initAuthStore();
+    listeners.add(setState);
+    setState({ ...authState });
 
-    supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session);
-      loadAdmin(data.session);
-    });
-
-    const { data: listener } = supabase.auth.onAuthStateChange(async (event, nextSession) => {
-      setSession(nextSession);
-      if (event === 'SIGNED_IN' && nextSession?.user?.email) {
-        try {
-          await addAdminLog({ adminEmail: nextSession.user.email, action: 'login success', entityType: 'auth', entityId: nextSession.user.id });
-        } catch {}
-      }
-      await loadAdmin(nextSession);
-    });
-
-    return () => listener.subscription.unsubscribe();
+    return () => {
+      listeners.delete(setState);
+    };
   }, []);
 
   const value = useMemo(() => ({
-    session,
-    admin,
-    loading,
-    error,
+    session: state.session,
+    admin: state.admin,
+    loading: state.loading,
+    error: state.error,
     isConfigured: isSupabaseConfigured,
-    isAdmin: Boolean(admin) && (admin.is_active ?? admin.active ?? true),
-    isSuperAdmin: admin?.role === 'super_admin' && (admin.is_active ?? admin.active ?? true),
-    email: session?.user?.email || '',
+    isAdmin: Boolean(state.admin) && state.admin.active === true,
+    isSuperAdmin: String(state.admin?.role || '').trim().toLowerCase() === 'super_admin' && state.admin.active === true,
+    email: state.session?.user?.email || '',
     logout: async () => {
       if (supabase) await supabase.auth.signOut();
+      subscription?.unsubscribe?.();
+      subscription = null;
+      initialized = false;
+      setAuthState({ session: null, admin: null, loading: false, error: '' });
       window.location.href = '/admin';
     },
-  }), [session, admin, loading, error]);
+  }), [state]);
 
   return value;
 }

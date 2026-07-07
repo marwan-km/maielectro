@@ -78,14 +78,21 @@ export const mapDbProductToUiProduct = (row) => {
   };
 };
 
+const parseProductNumber = (value, fallback = 0) => {
+  if (value === '' || value == null) return fallback;
+  const normalized = String(value).replace(/\s/g, '').replace(',', '.');
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : fallback;
+};
+
 export const mapUiProductToDbProduct = (product) => ({
   slug: product.slug,
   name: product.name,
   brand: product.brand,
   category: product.category,
   sub_category: product.subCategory,
-  price: Number(product.price || 0),
-  old_price: product.oldPrice === '' || product.oldPrice == null ? null : Number(product.oldPrice),
+  price: parseProductNumber(product.price, 0),
+  old_price: product.oldPrice === '' || product.oldPrice == null ? null : parseProductNumber(product.oldPrice, null),
   image: product.image,
   gallery: product.gallery || [],
   rating: Number(product.rating || 4.7),
@@ -114,6 +121,41 @@ export const mapUiProductToDbProduct = (product) => ({
   sort_order: Number(product.sortOrder || 0),
   updated_at: new Date().toISOString(),
 });
+
+
+const logProductSaveFailure = (error, productId) => {
+  console.error('Product save failed', { error, productId });
+};
+
+const describeProductMutationError = (error, action, productId) => {
+  logProductSaveFailure(error, productId);
+  const message = String(error?.message || error || '').trim();
+  const code = error?.code ? ` (${error.code})` : '';
+  if (/row-level security|violates row level security|permission denied|not authorized|insufficient privilege/i.test(message)) {
+    return new Error(`Erreur Supabase RLS: accès refusé. ${message}`);
+  }
+  if (/Cannot coerce|0 rows|multiple \(or no\) rows|PGRST116|not found/i.test(message)) {
+    return new Error(action === 'update' ? 'Produit introuvable ou accès refusé.' : `Produit introuvable.${code ? ` ${code}` : ''}`);
+  }
+  return new Error(`Erreur Supabase: ${message || 'enregistrement impossible.'}`);
+};
+
+const fetchProductAfterWrite = async (id) => {
+  if (!id) throw new Error('ID produit manquant.');
+  const { data, error } = await supabase
+    .from('products')
+    .select('*')
+    .eq('id', id)
+    .maybeSingle();
+
+  if (error) throw describeProductMutationError(error, 'fetch', id);
+  if (!data) {
+    const notFound = new Error('Produit introuvable ou accès refusé.');
+    logProductSaveFailure(notFound, id);
+    throw notFound;
+  }
+  return data;
+};
 
 const normalizeProduct = mapDbProductToUiProduct;
 const toProductRow = mapUiProductToDbProduct;
@@ -227,25 +269,34 @@ export async function saveProduct(product, adminEmail) {
   const row = toProductRow(product);
 
   if (product.id) {
+    const productId = product.id;
     const { data, error } = await supabase
       .from('products')
       .update(row)
-      .eq('id', product.id)
-      .select()
-      .single();
-    if (error) throw error;
-    await addAdminLog({ adminEmail, action: 'product updated', entityType: 'product', entityId: data.id, details: { slug: data.slug, name: data.name } });
+      .eq('id', productId)
+      .select('*')
+      .maybeSingle();
+
+    if (error) throw describeProductMutationError(error, 'update', productId);
+
+    const savedRow = data || await fetchProductAfterWrite(productId);
+    await addAdminLog({ adminEmail, action: 'product updated', entityType: 'product', entityId: savedRow.id, details: { slug: savedRow.slug, name: savedRow.name } });
     clearProductsCache();
-    return normalizeProduct(data);
+    return normalizeProduct(savedRow);
   }
 
   const { data, error } = await supabase
     .from('products')
     .insert(row)
-    .select()
-    .single();
-    
-  if (error) throw error;
+    .select('*')
+    .maybeSingle();
+
+  if (error) throw describeProductMutationError(error, 'insert');
+  if (!data) {
+    const insertError = new Error('Erreur Supabase: produit créé mais réponse vide.');
+    logProductSaveFailure(insertError, null);
+    throw insertError;
+  }
   await addAdminLog({ adminEmail, action: 'product created', entityType: 'product', entityId: data.id, details: { slug: data.slug, name: data.name } });
   clearProductsCache();
   return normalizeProduct(data);
@@ -253,8 +304,9 @@ export async function saveProduct(product, adminEmail) {
 
 export async function deleteProduct(id, adminEmail) {
   if (!isSupabaseConfigured) throw new Error('Supabase is not configured.');
+  if (!id) throw new Error('ID produit manquant.');
   const { error } = await supabase.from('products').delete().eq('id', id);
-  if (error) throw error;
+  if (error) throw describeProductMutationError(error, 'delete', id);
   await addAdminLog({ adminEmail, action: 'product deleted', entityType: 'product', entityId: id });
   clearProductsCache();
 }
@@ -265,9 +317,11 @@ export async function uploadProductImage(file, folder = 'products') {
 
 export async function updateProductStock(id, nextStock, nextQuantity, adminEmail, note = '') {
   if (!isSupabaseConfigured) throw new Error('Supabase is not configured.');
+  if (!id) throw new Error('ID produit manquant.');
   
-  const { data: product, error: fetchErr } = await supabase.from('products').select('*').eq('id', id).single();
-  if (fetchErr) throw fetchErr;
+  const { data: product, error: fetchErr } = await supabase.from('products').select('*').eq('id', id).maybeSingle();
+  if (fetchErr) throw describeProductMutationError(fetchErr, 'stock fetch', id);
+  if (!product) throw new Error('Produit introuvable ou accès refusé.');
 
   const oldStock = product.stock;
   const oldQuantity = Number(product.stock_quantity ?? 0);
@@ -277,10 +331,11 @@ export async function updateProductStock(id, nextStock, nextQuantity, adminEmail
     .from('products')
     .update({ stock: nextStock, stock_quantity: newQuantity })
     .eq('id', id)
-    .select()
-    .single();
+    .select('*')
+    .maybeSingle();
     
-  if (error) throw error;
+  if (error) throw describeProductMutationError(error, 'stock update', id);
+  const savedRow = data || await fetchProductAfterWrite(id);
   
   await addStockLog({
     productId: id,
@@ -301,7 +356,7 @@ export async function updateProductStock(id, nextStock, nextQuantity, adminEmail
   });
   
   clearProductsCache();
-  return normalizeProduct(data);
+  return normalizeProduct(savedRow);
 }
 
 export const filterProductsByCategory = (items, categoryId) => {

@@ -36,24 +36,15 @@ export function isMissingColumnError(error) {
 }
 
 export function adminIsActive(adminRow) {
-  if (!adminRow || !Object.prototype.hasOwnProperty.call(adminRow, 'is_active')) return true;
-  return adminRow.is_active === true;
+  return Boolean(adminRow) && adminRow.active === true;
 }
 
 async function getAdminByFilter(supabaseAdmin, column, value) {
   let { data, error } = await supabaseAdmin
     .from('admin_users')
-    .select('id,email,role,is_active')
+    .select('id,email,role,active')
     .eq(column, value)
     .limit(1);
-
-  if (error && isMissingColumnError(error) && /is_active/i.test(error.message || '')) {
-    ({ data, error } = await supabaseAdmin
-      .from('admin_users')
-      .select('id,email,role')
-      .eq(column, value)
-      .limit(1));
-  }
 
   if (error) throw error;
   return data?.[0] || null;
@@ -61,8 +52,6 @@ async function getAdminByFilter(supabaseAdmin, column, value) {
 
 export async function findAdminForAuthUser(supabaseAdmin, authUser) {
   if (!authUser?.id && !authUser?.email) return null;
-  const byId = authUser.id ? await getAdminByFilter(supabaseAdmin, 'id', authUser.id) : null;
-  if (byId) return byId;
   return authUser.email ? getAdminByFilter(supabaseAdmin, 'email', normalizeEmail(authUser.email)) : null;
 }
 
@@ -89,7 +78,7 @@ export async function requireSuperAdmin(req, res, supabaseAdmin) {
   }
 
   if (!adminRow) {
-    json(res, 403, { error: `Current user not found in admin_users by id (${requester.id}) or email (${requester.email}).` });
+    json(res, 403, { error: `Current user not found in admin_users by email (${requester.email}).` });
     return null;
   }
 
@@ -99,7 +88,7 @@ export async function requireSuperAdmin(req, res, supabaseAdmin) {
   }
 
   if (!adminIsActive(adminRow)) {
-    json(res, 403, { error: 'Current admin user is not active: is_active is false.' });
+    json(res, 403, { error: 'Current admin user is not active: active is false.' });
     return null;
   }
 

@@ -11,7 +11,7 @@ const ADMIN_NAV_ITEMS = [
   { to: '/admin/products/new', label: 'Ajouter produit', icon: PlusCircle, permission: PERMISSIONS.PRODUCTS_CREATE, match: (path) => path === '/admin/products/new' },
   { to: '/admin/categories', label: 'Catégories', icon: FolderTree, permission: PERMISSIONS.CATEGORIES_VIEW, match: (path) => path === '/admin/categories' },
   { to: '/admin/stock', label: 'Stock', icon: Warehouse, permission: PERMISSIONS.STOCK_VIEW, match: (path) => path === '/admin/stock' },
-  { to: '/admin/repair-services', label: 'Réparations', icon: Wrench, match: (path) => path === '/admin/repair-services' },
+  { to: '/admin/repair-services', label: 'Réparations', icon: Wrench, permission: PERMISSIONS.REPAIR_SERVICES_VIEW, match: (path) => path === '/admin/repair-services' },
   { to: '/admin/admins', label: 'Administrateurs', icon: Shield, superAdminOnly: true, match: (path) => path === '/admin/admins' },
   { to: '/admin/logs', label: 'Logs', icon: RotateCcw, permission: PERMISSIONS.LOGS_VIEW_OWN, match: (path) => path === '/admin/logs' },
   { to: '/admin/settings', label: 'Paramètres', icon: Settings, permission: PERMISSIONS.SETTINGS_VIEW, match: (path) => path === '/admin/settings' },

@@ -4,10 +4,15 @@ import AdminLayout from './AdminLayout.jsx';
 import Button from '../../components/ui/Button.jsx';
 import SafeImage from '../../components/ui/SafeImage.jsx';
 import useAdminAuth from '../../hooks/useAdminAuth.js';
+import usePermissions from '../../hooks/usePermissions.js';
+import { PERMISSIONS } from '../../config/permissions.js';
 import { listRepairServicesForAdmin, updateRepairService } from '../../services/adminRepairService.js';
 
 export default function AdminRepairServices() {
   const auth = useAdminAuth();
+  const { can } = usePermissions();
+  const canViewRepairServices = can(PERMISSIONS.REPAIR_SERVICES_VIEW);
+  const canUpdateRepairServices = can(PERMISSIONS.REPAIR_SERVICES_UPDATE);
   const [services, setServices] = useState([]);
   const [loading, setLoading] = useState(true);
   const [savingId, setSavingId] = useState('');
@@ -18,6 +23,7 @@ export default function AdminRepairServices() {
     setLoading(true);
     setError('');
     try {
+      if (!canViewRepairServices) throw new Error('Missing REPAIR_SERVICES_VIEW permission.');
       setServices(await listRepairServicesForAdmin());
     } catch (err) {
       setError(err.message || 'Chargement impossible.');
@@ -26,7 +32,7 @@ export default function AdminRepairServices() {
     }
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [canViewRepairServices]);
 
   const updateLocal = (id, key, value) => {
     setServices((items) => items.map((item) => (item.id === id ? { ...item, [key]: value } : item)));
@@ -37,6 +43,7 @@ export default function AdminRepairServices() {
     setError('');
     setMessage('');
     try {
+      if (!canUpdateRepairServices) throw new Error('Missing REPAIR_SERVICES_UPDATE permission.');
       const saved = await updateRepairService(service.id, service, auth.email);
       setServices((items) => items.map((item) => (item.id === saved.id ? saved : item)));
       setMessage('Service de réparation mis à jour.');
@@ -82,7 +89,7 @@ export default function AdminRepairServices() {
                 Actif
               </label>
             </div>
-            <Button type="button" onClick={() => save(service)} disabled={savingId === service.id} className="self-start">
+            <Button type="button" onClick={() => save(service)} disabled={savingId === service.id || !canUpdateRepairServices} className="self-start">
               <Save className="h-4 w-4" /> {savingId === service.id ? '...' : 'Enregistrer'}
             </Button>
           </section>

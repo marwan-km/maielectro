@@ -1,16 +1,16 @@
 import { useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { isSupabaseConfigured, supabase } from '../../lib/supabaseClient.js';
 import { Save, X } from 'lucide-react';
 import AdminLayout from './AdminLayout.jsx';
 import ImageUploader from '../../components/admin/ImageUploader.jsx';
 import Button from '../../components/ui/Button.jsx';
 import useAdminAuth from '../../hooks/useAdminAuth.js';
-import usePermissions from '../../hooks/usePermissions.js';
 import PermissionGuard from '../../components/admin/PermissionGuard.jsx';
-import { PERMISSIONS } from '../../config/permissions.js';
+import { PERMISSIONS, hasPermission } from '../../config/permissions.js';
 import { brands, categories } from '../../data/categories.js';
-import { getProducts, mapDbProductToUiProduct, saveProduct } from '../../services/productService.js';
+import { useProductData } from '../../context/ProductDataContext.jsx';
+import { clearProductsCache, getProducts, mapDbProductToUiProduct, saveProduct } from '../../services/productService.js';
 
 const emptyProduct = {
   name: '',
@@ -65,14 +65,25 @@ const parseSpecs = (value) => {
 
 export default function AdminProductForm() {
   const { id } = useParams();
-  const navigate = useNavigate();
   const auth = useAdminAuth();
+  const productData = useProductData();
+  const currentAdmin = auth.admin;
+  const currentRole = String(currentAdmin?.role || '').trim().toLowerCase();
   const isEdit = Boolean(id);
+  const savePermissionName = isEdit ? 'PRODUCTS_UPDATE' : 'PRODUCTS_CREATE';
+  const canSaveProduct = !auth.loading && (currentRole === 'super_admin' || hasPermission(currentAdmin, savePermissionName));
+  const showAdminDebug = import.meta.env.DEV && import.meta.env.VITE_DEBUG_ADMIN_PERMISSIONS === 'true';
   const [product, setProduct] = useState(emptyProduct);
   const [specsText, setSpecsText] = useState('[]');
   const [galleryText, setGalleryText] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+  const [saveAttemptCount, setSaveAttemptCount] = useState(0);
+  const [lastSavePayload, setLastSavePayload] = useState(null);
+  const [lastSaveError, setLastSaveError] = useState(null);
+  const [lastSaveResult, setLastSaveResult] = useState(null);
+  const [lastUpdatedProduct, setLastUpdatedProduct] = useState(null);
 
   useEffect(() => {
     if (!isEdit) return;
@@ -124,30 +135,152 @@ export default function AdminProductForm() {
 
   const update = (key, value) => setProduct((current) => ({ ...current, [key]: value }));
 
+  const buildSavePayload = () => {
+    const normalizedPrice = normalizeFormNumber(product.price);
+    if (Number.isNaN(normalizedPrice)) throw new Error('Prix invalide.');
+
+    return {
+      slug: product.slug || slugify(product.name),
+      name: product.name,
+      brand: product.brand,
+      category: product.category,
+      sub_category: product.subCategory,
+      price: normalizedPrice,
+      old_price: product.oldPrice === '' || product.oldPrice == null ? null : normalizeFormNumber(product.oldPrice),
+      image: product.image,
+      gallery: galleryText.split('\n').map((item) => item.trim()).filter(Boolean),
+      rating: Number(product.rating || 4.7),
+      warranty: product.warranty,
+      stock: product.stock,
+      stock_quantity: Number(product.stockQuantity || 0),
+      description: product.description,
+      short_description: product.shortDescription || null,
+      specs: parseSpecs(specsText),
+      badge: product.badge,
+      featured: Boolean(product.featured),
+      condition: product.condition || null,
+      processor: product.processor || null,
+      ram: product.ram || null,
+      storage: product.storage || null,
+      screen_size: product.screenSize || null,
+      graphics: product.graphics || null,
+      color: product.color || null,
+      model: product.model || null,
+      year: product.year === '' || product.year == null ? null : Number(product.year),
+      delivery_available: product.deliveryAvailable ?? true,
+      free_delivery: product.freeDelivery ?? true,
+      software_included: product.softwareIncluded || null,
+      views: Number(product.views || 0),
+      is_active: product.isActive ?? true,
+      sort_order: Number(product.sortOrder || 0),
+      updated_at: new Date().toISOString(),
+    };
+  };
+
+  const refetchProductById = async (productId) => {
+    const { data, error: fetchError } = await supabase
+      .from('products')
+      .select('*')
+      .eq('id', productId)
+      .maybeSingle();
+
+    if (fetchError) throw fetchError;
+    return data || null;
+  };
+
+  const saveExistingProduct = async (productId, payload) => {
+    const { error: updateError } = await supabase
+      .from('products')
+      .update(payload)
+      .eq('id', productId);
+
+    if (updateError) {
+      console.error('PRODUCT UPDATE ERROR', {
+        productId,
+        payload,
+        errorCode: updateError.code,
+        errorMessage: updateError.message,
+        errorDetails: updateError.details,
+        errorHint: updateError.hint,
+      });
+      throw updateError;
+    }
+
+    clearProductsCache();
+    const updatedRow = await refetchProductById(productId);
+    if (!updatedRow) throw new Error('Produit introuvable ou accès refusé après mise à jour.');
+
+    const savedPrice = Number(updatedRow.price);
+    const expectedPrice = Number(payload.price);
+    if (savedPrice !== expectedPrice) {
+      throw new Error(`La mise à jour n'a pas été appliquée. Prix attendu: ${expectedPrice}. Prix actuel: ${savedPrice}.`);
+    }
+
+    clearProductsCache();
+    return updatedRow;
+  };
+
+  const applySavedProduct = (savedProduct) => {
+    setProduct((current) => ({
+      ...current,
+      ...savedProduct,
+      price: String(savedProduct.price ?? ''),
+      oldPrice: savedProduct.oldPrice == null ? '' : String(savedProduct.oldPrice),
+    }));
+    setSpecsText(JSON.stringify(savedProduct.specs || [], null, 2));
+    setGalleryText((savedProduct.gallery || []).join('\n'));
+  };
+
   const submit = async (event) => {
     event.preventDefault();
+    const productId = isEdit ? id : product.id;
+    let payload = null;
+
+    console.log('SAVE CLICKED', { productId, formState: product, adminProfile: currentAdmin });
+    setSaveAttemptCount((count) => count + 1);
+    setLastSaveError(null);
+    setLastSaveResult(null);
+    setLastUpdatedProduct(null);
     setSaving(true);
     setError('');
+    setSuccess('');
+
     try {
-      await saveProduct({
-        ...product,
-        slug: product.slug || slugify(product.name),
-        price: Number(product.price || 0),
-        oldPrice: product.oldPrice === '' ? null : Number(product.oldPrice),
-        rating: Number(product.rating || 4.7),
-        stockQuantity: Number(product.stockQuantity || 0),
-        sortOrder: Number(product.sortOrder || 0),
-        year: product.year === '' ? null : Number(product.year),
-        gallery: galleryText.split('\n').map((item) => item.trim()).filter(Boolean),
-        specs: parseSpecs(specsText),
-      }, auth.email);
-      navigate('/admin/products');
+      payload = buildSavePayload();
+      setLastSavePayload(payload);
+
+      if (!auth.session) throw new Error('Not authenticated: connectez-vous avant d’enregistrer.');
+      if (!auth.email) throw new Error('Not authenticated: email admin introuvable.');
+      if (auth.loading) throw new Error('Chargement du profil admin en cours.');
+      if (!canSaveProduct) throw new Error(`Missing ${savePermissionName} permission.`);
+      if (isEdit && !productId) throw new Error('ID produit manquant.');
+
+      const savedRow = isEdit
+        ? await saveExistingProduct(productId, payload)
+        : await saveProduct({ ...product, ...payload, id: product.id }, auth.email);
+      const savedProduct = isEdit ? mapDbProductToUiProduct(savedRow) : savedRow;
+
+      setLastSaveResult(savedRow);
+      setLastUpdatedProduct(savedProduct);
+      applySavedProduct(savedProduct);
+      productData?.refreshProducts?.();
+      setSuccess('Produit mis à jour.');
     } catch (err) {
-      setError(err.message || 'Enregistrement impossible.');
+      const nextError = {
+        message: err.message || String(err),
+        code: err.code || null,
+        details: err.details || null,
+        hint: err.hint || null,
+      };
+      setLastSaveError(nextError);
+      setError(getProductSaveErrorMessage(err));
+      if (!payload) setLastSavePayload(null);
     } finally {
       setSaving(false);
     }
   };
+
+
 
   return (
     <AdminLayout>
@@ -155,6 +288,29 @@ export default function AdminProductForm() {
         <h2 className="text-3xl font-black text-navy dark:text-white">{isEdit ? 'Modifier produit' : 'Ajouter produit'}</h2>
         <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Renseignez les informations du produit et téléversez les images.</p>
       </div>
+
+      {showAdminDebug && (
+        <pre className="mb-4 overflow-auto rounded-2xl border border-amber-200 bg-amber-50 p-3 text-xs font-semibold text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200">
+{JSON.stringify({
+  email: auth.email,
+  role: currentAdmin?.role || null,
+  active: currentAdmin?.active ?? null,
+  permissions: currentAdmin?.permissions ?? null,
+  hasProductsUpdate: hasPermission(currentAdmin, 'PRODUCTS_UPDATE'),
+  loadingAdminProfile: auth.loading,
+  productId: id || null,
+  formPrice: product.price,
+  normalizedPrice: normalizeFormNumber(product.price),
+  saveButtonDisabled: saving || auth.loading || !canSaveProduct,
+  saveAttemptCount,
+  lastSavePayload,
+  lastSaveError,
+  lastSaveResult,
+  lastUpdatedProduct,
+}, null, 2)}
+        </pre>
+      )}
+
 
       <form onSubmit={submit} className="mx-auto grid w-full max-w-screen-2xl min-w-0 gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
         <div className="min-w-0 space-y-6">
@@ -175,8 +331,8 @@ export default function AdminProductForm() {
           <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-soft dark:border-slate-800 dark:bg-card-dark sm:p-6">
           <h3 className="mb-4 text-lg font-black text-navy dark:text-white">Prix et stock</h3>
           <div className="grid gap-4 md:grid-cols-2">
-            <Field label="Prix" type="number" value={product.price} onChange={(value) => update('price', value)} required />
-            <Field label="Ancien prix" type="number" value={product.oldPrice || ''} onChange={(value) => update('oldPrice', value)} />
+            <Field label="Prix" value={product.price} onChange={(value) => update('price', value)} required />
+            <Field label="Ancien prix" value={product.oldPrice || ''} onChange={(value) => update('oldPrice', value)} />
             <Select label="Stock" value={product.stock} onChange={(value) => update('stock', value)} options={['in_stock', 'out_of_stock']} />
             <Field label="Quantité stock" type="number" value={product.stockQuantity ?? 0} onChange={(value) => update('stockQuantity', value)} />
           </div>
@@ -224,6 +380,7 @@ export default function AdminProductForm() {
             <Field label="Logiciels inclus" value={product.softwareIncluded} onChange={(value) => update('softwareIncluded', value)} />
           </div>
           {error && <p className="rounded-2xl bg-red-50 p-3 text-sm font-bold text-red-700 dark:bg-red-950/30 dark:text-red-300">{error}</p>}
+          {success && <p className="rounded-2xl bg-emerald-50 p-3 text-sm font-bold text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300">{success}</p>}
           </section>
         </div>
 
@@ -254,10 +411,13 @@ export default function AdminProductForm() {
             </PermissionGuard>
           </div>
         </aside>
+        {!auth.loading && !canSaveProduct && (
+          <p className="rounded-2xl bg-red-50 p-3 text-sm font-bold text-red-700 dark:bg-red-950/30 dark:text-red-300 lg:col-span-2">Missing {savePermissionName} permission.</p>
+        )}
         <div className="sticky bottom-0 z-10 -mx-4 border-t border-slate-200 bg-slate-50/95 px-4 py-3 backdrop-blur dark:border-slate-800 dark:bg-slate-950/95 lg:col-span-2 lg:mx-0 lg:rounded-2xl lg:border">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-sm font-bold text-slate-500 dark:text-slate-400">{isEdit ? 'Modifiez puis enregistrez les changements.' : 'Créez la fiche produit avec ses images et options.'}</p>
-            <Button type="submit" disabled={saving}><Save className="h-5 w-5" /> {saving ? 'Enregistrement...' : 'Enregistrer'}</Button>
+            <Button type="submit" disabled={saving || auth.loading || !canSaveProduct}><Save className="h-5 w-5" /> {saving ? 'Enregistrement...' : 'Enregistrer'}</Button>
           </div>
         </div>
       </form>
@@ -293,4 +453,31 @@ function Select({ label, value, onChange, options }) {
       </select>
     </label>
   );
+}
+
+
+function getProductSaveErrorMessage(err) {
+  const message = String(err?.message || err || '').trim();
+  const code = err?.code ? ` (${err.code})` : '';
+  if (!message) return 'Supabase update failed: Enregistrement impossible.';
+  if (/Missing (PRODUCTS_CREATE|PRODUCTS_UPDATE) permission/i.test(message)) return message;
+  if (/Not authenticated/i.test(message)) return message;
+  if (/ID produit manquant|Product id missing/i.test(message)) return 'ID produit manquant.';
+  if (/Erreur Supabase RLS|row-level security|violates row level security|permission denied|not authorized|insufficient privilege/i.test(message)) {
+    return `Vous n'avez pas la permission de modifier ce produit. ${message}`;
+  }
+  if (/JSON|Unexpected token|parse/i.test(message)) {
+    return `Supabase update failed${code}: vérifiez le format JSON des spécifications. ${message}`;
+  }
+  if (/Cannot coerce|Produit introuvable|accès refusé|0 rows|multiple \(or no\) rows|PGRST116|not found/i.test(message)) {
+    return `Produit introuvable ou accès refusé. Détail: ${message}`;
+  }
+  return `Supabase update failed${code}: ${message}`;
+}
+
+
+function normalizeFormNumber(value) {
+  if (value === '' || value == null) return NaN;
+  const parsed = Number(String(value).trim().replace(/\s/g, '').replace(',', '.'));
+  return Number.isNaN(parsed) ? NaN : parsed;
 }

@@ -4,9 +4,27 @@ import { Link } from 'react-router-dom';
 import { Card } from '@heroui/react/card';
 import FallbackImage from '../ui/FallbackImage.jsx';
 import { useCart } from '../../context/CartContext.jsx';
+import { whatsappLink } from '../../data/storeInfo.js';
+
+const buildProductUrl = (product) => {
+  if (!product?.slug) return '';
+  if (typeof window === 'undefined') return `https://www.maielectro.com/product/${product.slug}`;
+  return `${window.location.origin}/product/${product.slug}`;
+};
+
+const openWhatsAppForProduct = (product) => {
+  if (typeof window === 'undefined') return;
+  const message = [
+    'Bonjour MaiElectro, je veux commander ce produit :',
+    `Nom: ${product.name}`,
+    `Prix: ${Number(product.price || 0).toLocaleString('fr-MA')} DH`,
+    `Lien: ${buildProductUrl(product)}`,
+  ].join('\n');
+  window.open(whatsappLink(message), '_blank', 'noopener,noreferrer');
+};
 
 function ProductCard({ product }) {
-  const { addToCart, getItemQuantity } = useCart();
+  const { addToCart, getItemQuantity, openCart } = useCart();
   const inStock = product.stock !== 'out_of_stock';
   const stockText = inStock ? 'En stock' : 'Rupture de stock';
   const cartQuantity = getItemQuantity(product.id);
@@ -85,6 +103,7 @@ function ProductCard({ product }) {
               event.preventDefault();
               event.stopPropagation();
               addToCart(product);
+              openCart();
             }}
             className="inline-flex h-12 w-full flex-1 items-center justify-center gap-2 rounded-xl bg-gray-900 px-4 text-sm font-semibold text-white transition-colors duration-200 hover:bg-gray-700 sm:w-auto dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-white"
             aria-label="Ajouter au panier"
@@ -98,18 +117,13 @@ function ProductCard({ product }) {
             onClick={(event) => {
               event.preventDefault();
               event.stopPropagation();
-              addToCart(product);
+              openWhatsAppForProduct(product);
             }}
             className="relative hidden h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-green-500 text-white transition-colors duration-200 hover:bg-green-600 sm:inline-flex"
-            aria-label="Ajouter au panier"
-            title={cartQuantity > 0 ? `Déjà ajouté (${cartQuantity})` : 'Ajouter au panier'}
+            aria-label="Commander sur WhatsApp"
+            title="Commander sur WhatsApp"
           >
             <ShoppingCart className="h-5 w-5 shrink-0" />
-            {cartQuantity > 0 && (
-              <span className="absolute -right-1 -top-1 grid h-4 min-w-4 place-items-center rounded-full bg-gray-900 px-1 text-[10px] font-black leading-none text-white">
-                {cartQuantity}
-              </span>
-            )}
           </button>
         </div>
       </div>

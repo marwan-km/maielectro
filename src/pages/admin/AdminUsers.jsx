@@ -24,7 +24,7 @@ const roles = [
 ];
 
 const initialForm = { email: '', fullName: '', role: 'admin', active: true, password: '', confirmPassword: '' };
-const getAdminActive = (admin) => admin?.is_active ?? admin?.active ?? true;
+const getAdminActive = (admin) => admin?.active === true;
 const initialPasswordForm = { password: '', confirmPassword: '' };
 
 const validatePasswordFields = (password, confirmPassword) => {

@@ -38,7 +38,7 @@ async function postAdminApi(path, body) {
   return payload;
 }
 
-const adminIsActive = (admin) => admin?.is_active ?? admin?.active ?? true;
+const adminIsActive = (admin) => admin?.active === true;
 
 export async function getAdmins({ includeInactive = false } = {}) {
   if (!isSupabaseConfigured) return [];
@@ -72,17 +72,11 @@ export async function updateAdmin(id, { fullName, role, active, permissions }, a
   const row = {
     full_name: fullName,
     role,
-    is_active: active,
+    active,
     permissions: permissions || {},
     updated_at: new Date().toISOString(),
   };
   let { data, error } = await supabase.from('admin_users').update(row).eq('id', id).select().single();
-
-  if (error && /is_active|full_name|permissions|updated_at|schema cache|column/i.test(error.message || '')) {
-    const fallbackRow = { role };
-    if (!/is_active/i.test(error.message || '')) fallbackRow.is_active = active;
-    ({ data, error } = await supabase.from('admin_users').update(fallbackRow).eq('id', id).select().single());
-  }
 
   if (error) throw normalizeAdminError(error);
 
@@ -100,12 +94,9 @@ export async function updateAdmin(id, { fullName, role, active, permissions }, a
 export async function deactivateAdmin(id, adminEmail) {
   if (!isSupabaseConfigured) throw new Error('Supabase is not configured.');
   let { data, error } = await supabase.from('admin_users').update({
-    is_active: false,
+    active: false,
     updated_at: new Date().toISOString(),
   }).eq('id', id).select().single();
-  if (error && /is_active|updated_at|schema cache|column/i.test(error.message || '')) {
-    ({ data, error } = await supabase.from('admin_users').update({ active: false }).eq('id', id).select().single());
-  }
   if (error) throw error;
   await addAdminLog({ adminEmail, action: 'admin deactivated', entityType: 'admin_user', entityId: id }).catch(() => null);
   return data;
